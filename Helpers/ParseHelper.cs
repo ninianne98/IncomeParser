@@ -113,8 +113,8 @@ namespace Carrotware.IncomeParser.Helpers {
 
 		public static DateTime? StringToDate(this string? val) {
 			if (!string.IsNullOrEmpty(val)) {
-				if (val.ToLowerInvariant().Contains("as of")) {
-					val = val.Substring(0, val.ToLowerInvariant().IndexOf("as of"));
+				if (val.ToLowerInvariant().Contains(" ")) {
+					val = val.Substring(0, val.ToLowerInvariant().IndexOf(" "));
 				}
 
 				return Convert.ToDateTime(val.Trim());
