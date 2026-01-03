@@ -57,6 +57,7 @@ namespace Carrotware.IncomeParser.Entities {
 								row.TransactionDate = rh.ReadCell("Date").StringToDate() ?? DateTime.Now;
 
 								if (row.ActionText.ToLowerInvariant().Contains("dividend")
+									|| row.ActionText.ToLowerInvariant().EndsWith(" div")
 									|| row.ActionText.ToLowerInvariant().Contains("div adjustment")
 									|| row.ActionText.ToLowerInvariant().Contains("qualified div")
 									|| row.ActionText.ToLowerInvariant().Contains("qual div")
@@ -74,6 +75,9 @@ namespace Carrotware.IncomeParser.Entities {
 									}
 									if (row.ActionText.ToLowerInvariant().Contains("interest")) {
 										row.TransactionType = TransactionType.Interest;
+									}
+									if (row.ActionText.ToLowerInvariant().Contains("cash in lieu")) {
+										row.TransactionType = TransactionType.Dividend;
 									}
 									if (row.ActionText.ToLowerInvariant().Equals("sell")) {
 										row.TransactionType = TransactionType.Sell;

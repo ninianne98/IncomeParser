@@ -113,14 +113,13 @@ namespace Carrotware.IncomeParser.Entities {
 			// to capture wash sales, including small amounts of prior or future dates is appropriate, use dominant year
 			// ex checking a Jan or Dec set of trades after the fact, include additional dates flanking the affected period
 			if (this.TransactionRows.Any()) {
-				year = this.TransactionRows.Select(x => x.TransactionDate)
-									.GroupBy(y => y.Year)
-									.OrderByDescending(y => y.Key)
-									.OrderByDescending(z => z.Count())
-									.Select(y => y.Key)
-									.FirstOrDefault();
+				year = this.TransactionRows.Select(d => d.TransactionDate)
+						   .GroupBy(y => y.Year)
+						   .OrderByDescending(g => g.Count())
+						   .Select(g => g.Key)
+						   .FirstOrDefault();
 			}
-			if (year < 1900) {
+			if (year < 1970) {
 				year = DateTime.Now.Year;
 			}
 

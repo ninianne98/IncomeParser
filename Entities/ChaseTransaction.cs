@@ -59,7 +59,12 @@ namespace Carrotware.IncomeParser.Entities {
 								if (row.ActionText.ToLowerInvariant().Contains("dividend")) {
 									row.TransactionType = TransactionType.Dividend;
 
-									if (detail.Contains("st cap-gain div")) {
+									if (detail.Contains("lt cap-gain div")
+										|| detail.Contains("l/t cap gns")) {
+										row.TransactionType = TransactionType.DistributionLT;
+									}
+									if (detail.Contains("st cap-gain div")
+										|| detail.Contains("s/t cap gns")) {
 										row.TransactionType = TransactionType.DistributionST;
 									}
 								} else {
@@ -83,11 +88,13 @@ namespace Carrotware.IncomeParser.Entities {
 									}
 
 									if (row.ActionText.ToLowerInvariant().Equals("cap")) {
-										if (detail.Contains("lt cap-gain div")
+										if ((detail.Contains("lt cap-gain")
+											|| detail.Contains("l/t cap gns"))
 											|| !string.IsNullOrEmpty(rh.ReadCell("G/L Long USDs"))) {
 											row.TransactionType = TransactionType.DistributionLT;
 										}
-										if (detail.Contains("st cap-gain div")
+										if ((detail.Contains("st cap-gain")
+											|| detail.Contains("s/t cap gns"))
 											|| !string.IsNullOrEmpty(rh.ReadCell("G/L Short USD"))) {
 											row.TransactionType = TransactionType.DistributionST;
 										}
