@@ -18,6 +18,16 @@
 
 	//=============================
 
+	public enum IncomeType {
+		Unknown,
+		LongTermCG,
+		ShortTermGG,
+		Dividend,
+		Interest,
+	}
+
+	//=============================
+
 	public enum GainLossType {
 		Unknown,
 		Short,

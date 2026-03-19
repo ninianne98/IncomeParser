@@ -44,12 +44,12 @@ namespace Carrotware.IncomeParser.Entities {
 							} else {
 								if (fields.Length > 8 && r >= 5) {
 									if (r <= 7) {
-										this.AccountIdentity = rh.ReadCell("Account");
+										this.AccountIdentity = rh.ReadEmptyCell("Account");
 									}
 									var description = rh.ReadCell("Description");
 
 									var row = new TransactionRow(this.Rows[r]);
-									row.SecuritySymbol = (rh.ReadCell("Symbol/ CUSIP") ?? "N/A").Trim();
+									row.SecuritySymbol = GetTicker(rh);
 									row.ActionText = description ?? string.Empty;
 
 									row.TransactionDate = rh.ReadCell("Settlement Date").StringToDate() ?? DateTime.Now;

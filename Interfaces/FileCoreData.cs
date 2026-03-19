@@ -33,7 +33,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 		}
 
 		public FileInfo FileInfo { get; set; }
-		public List<string> Rows { get; set; }
+		public List<string> Rows { get; set; } = new List<string>();
 		public BrokerIdentity BrokerIdentity { get; set; }
 		public FileExtractType FileExtractType { get; set; }
 		public string AccountIdentity { get; set; } = string.Empty;

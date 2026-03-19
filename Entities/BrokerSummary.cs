@@ -18,9 +18,13 @@ namespace Carrotware.IncomeParser.Entities {
 		public BrokerIdentity BrokerIdentity { get; set; } = BrokerIdentity.Unknown;
 		public string AccountIdentity { get; set; } = string.Empty;
 
+		public int Year { get; set; } = DateTime.Now.Year;
+
 		public List<GainLossRow> GainLossRows { get; set; } = new List<GainLossRow>();
 
 		public List<TransactionRow> TransactionRows { get; set; } = new List<TransactionRow>();
+
+		public List<QuarterRow> QuarterRows { get; set; } = new List<QuarterRow>();
 
 		public void LoadData(List<IFileCoreData> documents) {
 			_documents = documents;
@@ -46,7 +50,7 @@ namespace Carrotware.IncomeParser.Entities {
 		}
 
 		public void PrintOutput() {
-			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"];
+			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"] ?? string.Empty;
 
 			string fileNameCSV = Path.Join(settingFolder, ParserWorkerBee.OutputCSV);
 			string fileNameTxt = Path.Join(settingFolder, ParserWorkerBee.OutputReport);
@@ -109,18 +113,18 @@ namespace Carrotware.IncomeParser.Entities {
 			sb.WriteFile(fileNameCSV);
 			sb.Clear();
 
-			var year = DateTime.Now.Year;
+			this.Year = DateTime.Now.Year;
 			// to capture wash sales, including small amounts of prior or future dates is appropriate, use dominant year
 			// ex checking a Jan or Dec set of trades after the fact, include additional dates flanking the affected period
 			if (this.TransactionRows.Any()) {
-				year = this.TransactionRows.Select(d => d.TransactionDate)
+				this.Year = this.TransactionRows.Select(d => d.TransactionDate)
 						   .GroupBy(y => y.Year)
 						   .OrderByDescending(g => g.Count())
 						   .Select(g => g.Key)
 						   .FirstOrDefault();
 			}
-			if (year < 1970) {
-				year = DateTime.Now.Year;
+			if (this.Year < 1970) {
+				this.Year = DateTime.Now.Year;
 			}
 
 			sb.AppendLine(",");
@@ -138,6 +142,8 @@ namespace Carrotware.IncomeParser.Entities {
 			sb.WriteFile(fileNameCSV);
 			sb.Clear();
 
+			var year = this.Year;
+
 			for (int q = 1; q <= 4; q++) {
 				var startMonth = ((q - 1) * 3 + 1);
 				var endMonth = q * 3;
@@ -145,6 +151,9 @@ namespace Carrotware.IncomeParser.Entities {
 
 				var startDate = new DateTime(year, startMonth, 1);
 				var endDate = new DateTime(year, endMonth, endMonthEndDate);
+
+				var quarter = new QuarterRow(q, year, startDate, endDate);
+				this.QuarterRows.Add(quarter);
 
 				ConsoleWriter("-----------------------------");
 				ConsoleWriter($"Quarter {q} {year} : {startDate:d} - {endDate:d}");
@@ -185,6 +194,16 @@ namespace Carrotware.IncomeParser.Entities {
 					sb.AppendLine();
 					sb.WriteFile(fileNameCSV);
 					sb.Clear();
+
+					var quarterDiv = new QuarterlyTotalRow(IncomeType.Dividend, q, dividendsQ);
+					var quarterInt = new QuarterlyTotalRow(IncomeType.Interest, q, interestQ);
+					var quarterLong = new QuarterlyTotalRow(IncomeType.LongTermCG, q, ltgQ);
+					var quarterShort = new QuarterlyTotalRow(IncomeType.ShortTermGG, q, stgQ);
+
+					quarter.QuarterlyTotalRows.Add(quarterDiv);
+					quarter.QuarterlyTotalRows.Add(quarterInt);
+					quarter.QuarterlyTotalRows.Add(quarterLong);
+					quarter.QuarterlyTotalRows.Add(quarterShort);
 
 					var losses = gains.Where(x => x.GainLoss < 0 && x.Quantity != 0);
 
@@ -232,7 +251,7 @@ namespace Carrotware.IncomeParser.Entities {
 								adjQS = adjQS + adjustment;
 							}
 
-							ConsoleWriter($"\tPotential Wash: {ticker} - {l.GainLossType} - {l.Quantity} @ {l.UnitProceeds:C2} - {l.DateClosed:d} - {l.GainLoss:C2} ");
+							ConsoleWriter($"\tPotential Wash: {ticker} : {l.DateOpened:d} - {l.GainLossType} - {l.Quantity} shares @ {l.UnitProceeds:C2} - {l.DateClosed:d} - {l.GainLoss:C2} ");
 
 							var washMsg = $"\t\t{washShares} alternate shares purchased,"
 										+ (lossAllowed == 0 ? $" entire loss disallowed" :
@@ -250,14 +269,17 @@ namespace Carrotware.IncomeParser.Entities {
 					adjYearShort = adjYearShort + adjQS;
 
 					if (adjQL != 0 || adjQS != 0) {
-						var adjL = ltgQ + adjQL;
-						var adjS = stgQ + adjQS;
+						var ltgQ_Adj = ltgQ + adjQL;
+						var stgQ_Adj = stgQ + adjQS;
 
 						ConsoleWriter();
 						ConsoleWriter($"\tQ{q} Dividends:\t{dividendsQ:C2} ");
 						ConsoleWriter($"\tQ{q} Interest:\t{interestQ:C2} ");
-						ConsoleWriter($"\tQ{q} ADJUSTED LT CG:\t{adjL:C2} \t- adding back {adjQL:C2}");
-						ConsoleWriter($"\tQ{q} ADJUSTED ST CG:\t{adjS:C2} \t- adding back {adjQS:C2}");
+						ConsoleWriter($"\tQ{q} ADJUSTED LT CG:\t{ltgQ_Adj:C2} \t- adding back {adjQL:C2}");
+						ConsoleWriter($"\tQ{q} ADJUSTED ST CG:\t{stgQ_Adj:C2} \t- adding back {adjQS:C2}");
+
+						quarterLong.Adjustment = adjQL;
+						quarterShort.Adjustment = adjQS;
 
 						sb.Append(",");
 						sb.Append($"Q{q} {year} ***".QuoteForCSV() + ",");
@@ -265,9 +287,9 @@ namespace Carrotware.IncomeParser.Entities {
 						sb.Append($"{interestQ:C2}".QuoteForCSV() + ",");
 						sb.Append($"{ltgQ:C2}".QuoteForCSV() + ",");
 						sb.Append($"{stgQ:C2}".QuoteForCSV() + ",");
-						sb.Append($"{adjL:C2}".QuoteForCSV() + ",");
+						sb.Append($"{ltgQ_Adj:C2}".QuoteForCSV() + ",");
 						sb.Append($"{adjQL:C2}".QuoteForCSV() + ",");
-						sb.Append($"{adjS:C2}".QuoteForCSV() + ",");
+						sb.Append($"{stgQ_Adj:C2}".QuoteForCSV() + ",");
 						sb.Append($"{adjQS:C2}".QuoteForCSV() + ",");
 						sb.AppendLine();
 						sb.WriteFile(fileNameCSV);

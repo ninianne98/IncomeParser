@@ -32,34 +32,34 @@ namespace Carrotware.IncomeParser.Helpers {
 		}
 
 		public static string MoneyStringClean(this string? val) {
-			if (!string.IsNullOrEmpty(val)) {
-				val = val.StringSafeTrim();
+			string v2 = val.StringSafeTrim() ?? string.Empty;
 
-				if (val == "-") {
-					val = string.Empty;
+			if (!string.IsNullOrEmpty(v2)) {
+				if (v2 == "-") {
+					v2 = string.Empty;
 				}
 
-				if (val.Contains("(") && val.Contains(")")) {
-					val = val.Replace("(", string.Empty);
-					val = val.Replace(")", string.Empty);
-					val = string.Format("-{0}", val);
+				if (v2.Contains("(") && v2.Contains(")")) {
+					v2 = v2.Replace("(", string.Empty);
+					v2 = v2.Replace(")", string.Empty);
+					v2 = string.Format("-{0}", v2);
 				}
 
-				if (val.Contains("$")) {
-					val = val.Replace("$", string.Empty);
+				if (v2.Contains("$")) {
+					v2 = v2.Replace("$", string.Empty);
 				}
 
-				if (val.Contains(",")) {
-					val = val.Replace(",", string.Empty);
+				if (v2.Contains(",")) {
+					v2 = v2.Replace(",", string.Empty);
 				}
 
-				val = val.Trim();
+				v2 = v2.Trim();
 
-				if (val == "0.00") {
-					val = "0";
+				if (v2 == "0.00") {
+					v2 = "0";
 				}
 
-				return val.Trim();
+				return v2.Trim();
 			}
 
 			return string.Empty;
@@ -165,7 +165,7 @@ namespace Carrotware.IncomeParser.Helpers {
 			return val;
 		}
 
-		public static string Left(this string? val, int length) {
+		public static string? Left(this string? val, int length) {
 			if (!string.IsNullOrEmpty(val) && length > 0) {
 				if (val.Length <= length) {
 					return val;

@@ -54,7 +54,7 @@ namespace Carrotware.IncomeParser.Entities {
 								var sDate = rh.ReadCell("Sale Date");
 
 								var row = new GainLossRow(this.Rows[r]);
-								row.SecuritySymbol = rh.ReadCell("Ticker") ?? "N/A";
+								row.SecuritySymbol = GetTicker(rh);
 
 								row.Quantity = rh.ReadCell("Quantity").StringToDecimal() ?? 0;
 								row.UnitCost = rh.ReadCell("Unit Cost Basis").StringToDecimal() ?? 0;

@@ -51,6 +51,14 @@
 			}
 		}
 
+		public string ReadEmptyCell(string keyName) {
+			return ReadCell(keyName) ?? string.Empty;
+		}
+
+		public string ReadEmptyCell(int cellNum) {
+			return ReadCell(cellNum) ?? string.Empty;
+		}
+
 		public string? ReadCell(string keyName) {
 			string? cellValue = null;
 

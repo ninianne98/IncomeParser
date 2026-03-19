@@ -51,7 +51,7 @@ namespace Carrotware.IncomeParser.Entities {
 								}
 
 								var row = new TransactionRow(this.Rows[r]);
-								row.SecuritySymbol = (rh.ReadCell("Symbol") ?? "N/A").Trim();
+								row.SecuritySymbol = GetTicker(rh);
 								row.ActionText = rh.ReadCell("Action") ?? string.Empty;
 
 								row.TransactionDate = rh.ReadCell("Date").StringToDate() ?? DateTime.Now;

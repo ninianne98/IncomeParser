@@ -51,12 +51,12 @@ namespace Carrotware.IncomeParser.Entities {
 									}
 
 									var row = new GainLossRow(this.Rows[r]);
-									row.SecuritySymbol = rh.ReadCell("Symbol") ?? "N/A";
+									row.SecuritySymbol = GetTicker(rh);
 
 									row.DateOpened = rh.ReadCell("Opened Date").StringToDate() ?? DateTime.Now;
 									row.DateClosed = rh.ReadCell("Closed Date").StringToDate() ?? DateTime.Now;
 
-									row.GainLossType = rh.ReadCell("Term").ToLowerInvariant().Contains("short") ? GainLossType.Short : GainLossType.Long;
+									row.GainLossType = rh.ReadEmptyCell("Term").ToLowerInvariant().Contains("short") ? GainLossType.Short : GainLossType.Long;
 
 									row.Quantity = rh.ReadCell("Quantity").StringToDecimal() ?? 0;
 									row.UnitCost = rh.ReadCell("Cost Per Share").StringToDecimal() ?? 0;
