@@ -26,6 +26,7 @@
 			this.QuarterEndDate = endD;
 
 			this.QuarterlyTotalRows = new List<QuarterlyTotalRow>();
+			this.WashMatches = new List<WashMatch>();
 		}
 
 		public int Quarter { get; set; } = 1;
@@ -35,5 +36,7 @@
 		public DateTime QuarterEndDate { get; set; } = DateTime.MinValue;
 
 		public List<QuarterlyTotalRow> QuarterlyTotalRows { get; set; } = new List<QuarterlyTotalRow>();
+
+		public List<WashMatch> WashMatches { get; set; } = new List<WashMatch>();
 	}
 }

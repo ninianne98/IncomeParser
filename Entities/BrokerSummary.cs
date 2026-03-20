@@ -20,6 +20,21 @@ namespace Carrotware.IncomeParser.Entities {
 
 		public int Year { get; set; } = DateTime.Now.Year;
 
+		public decimal GrandTotal {
+			get {
+				decimal _total = 0;
+
+				if (this.QuarterRows != null) {
+					foreach (var q in this.QuarterRows) {
+						_total = _total + q.QuarterlyTotalRows.Sum(x => x.Income);
+						_total = _total + q.QuarterlyTotalRows.Sum(x => x.Adjustment);
+					}
+				}
+
+				return _total;
+			}
+		}
+
 		public List<GainLossRow> GainLossRows { get; set; } = new List<GainLossRow>();
 
 		public List<TransactionRow> TransactionRows { get; set; } = new List<TransactionRow>();
@@ -52,7 +67,7 @@ namespace Carrotware.IncomeParser.Entities {
 		public void PrintOutput() {
 			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"] ?? string.Empty;
 
-			string fileNameCSV = Path.Join(settingFolder, ParserWorkerBee.OutputCSV);
+			//string fileNameCSV = Path.Join(settingFolder, ParserWorkerBee.OutputCSV);
 			string fileNameTxt = Path.Join(settingFolder, ParserWorkerBee.OutputReport);
 			SetReportFile(fileNameTxt);
 
@@ -69,7 +84,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 			sb.AppendLine($"Account: {this.AccountIdentity} - {this.BrokerIdentity}".QuoteForCSV());
 			sb.AppendLine($"Generated: {ParserWorkerBee.AppDateTime}".QuoteForCSV());
-			sb.WriteFile(fileNameCSV);
+			// sb.WriteFile(fileNameCSV);
 			sb.Clear();
 
 			ConsoleWriter();
@@ -101,7 +116,7 @@ namespace Carrotware.IncomeParser.Entities {
 			sb.Append("LT CG".QuoteForCSV() + ",");
 			sb.Append("ST CG".QuoteForCSV() + ",");
 			sb.AppendLine();
-			sb.WriteFile(fileNameCSV);
+			// sb.WriteFile(fileNameCSV);
 			sb.Clear();
 
 			sb.Append(",");
@@ -110,7 +125,7 @@ namespace Carrotware.IncomeParser.Entities {
 			sb.Append($"{ltg:C2}".QuoteForCSV() + ",");
 			sb.Append($"{stg:C2}".QuoteForCSV() + ",");
 			sb.AppendLine();
-			sb.WriteFile(fileNameCSV);
+			// sb.WriteFile(fileNameCSV);
 			sb.Clear();
 
 			this.Year = DateTime.Now.Year;
@@ -139,7 +154,7 @@ namespace Carrotware.IncomeParser.Entities {
 			sb.Append("ST CG Adjusted".QuoteForCSV() + ",");
 			sb.Append("ST CG Adjustment".QuoteForCSV() + ",");
 			sb.AppendLine();
-			sb.WriteFile(fileNameCSV);
+			// sb.WriteFile(fileNameCSV);
 			sb.Clear();
 
 			var year = this.Year;
@@ -192,7 +207,7 @@ namespace Carrotware.IncomeParser.Entities {
 					sb.Append($"{ltgQ:C2}".QuoteForCSV() + ",");
 					sb.Append($"{stgQ:C2}".QuoteForCSV() + ",");
 					sb.AppendLine();
-					sb.WriteFile(fileNameCSV);
+					// sb.WriteFile(fileNameCSV);
 					sb.Clear();
 
 					var quarterDiv = new QuarterlyTotalRow(IncomeType.Dividend, q, dividendsQ);
@@ -207,16 +222,16 @@ namespace Carrotware.IncomeParser.Entities {
 
 					var losses = gains.Where(x => x.GainLoss < 0 && x.Quantity != 0);
 
-					foreach (var l in losses) {
+					foreach (var glr in losses) {
 						var washes = new List<WashDetail>();
-						var washStart = l.DateClosed.AddDays(-31);
-						var washEnd = l.DateClosed.AddDays(31);
-						var ticker = l.SecuritySymbol.ToUpperInvariant();
+						var washStart = glr.DateClosed.AddDays(-31);
+						var washEnd = glr.DateClosed.AddDays(31);
+						var ticker = glr.SecuritySymbol.ToUpperInvariant();
 
 						// as there are sometimes several lots, proportionally share any wash sales across lots
 						var lotCount = losses.Where(x => x.SecuritySymbol == ticker).Count();
 						var totalQuantityLost = losses.Where(x => x.SecuritySymbol == ticker).Sum(x => x.Quantity);
-						var proportionLoss = l.Quantity / totalQuantityLost;
+						var proportionLoss = glr.Quantity / totalQuantityLost;
 
 						var alternates = aliases.Where(x => x.Select(y => y.ToUpperInvariant()).Contains(ticker)).FirstOrDefault();
 						if (alternates == null) {
@@ -237,21 +252,27 @@ namespace Carrotware.IncomeParser.Entities {
 						}
 
 						if (washes.Any()) {
+							var wash = new WashMatch(ticker, alternates, glr, washes);
+							wash.TotalQuantityLost = totalQuantityLost;
+							wash.LotCount = lotCount;
+							wash.ProportionLoss = proportionLoss;
+							quarter.WashMatches.Add(wash);
+
 							var washShares = washes.Sum(x => x.Quantity);
-							var fracAllowed = 1 - (washShares < l.Quantity ? (washShares / l.Quantity) : 1);
-							var lossAllowed = fracAllowed * l.GainLoss / proportionLoss;
+							var fracAllowed = 1 - (washShares < glr.Quantity ? (washShares / glr.Quantity) : 1);
+							var lossAllowed = fracAllowed * glr.GainLoss / proportionLoss;
 							var adjProportionLost = fracAllowed / proportionLoss;
 
-							var adjustment = -1 * (l.GainLoss - lossAllowed);
+							var adjustment = -1 * (glr.GainLoss - lossAllowed);
 
-							if (l.GainLossType == GainLossType.Long) {
+							if (glr.GainLossType == GainLossType.Long) {
 								adjQL = adjQL + adjustment;
 							}
-							if (l.GainLossType == GainLossType.Short) {
+							if (glr.GainLossType == GainLossType.Short) {
 								adjQS = adjQS + adjustment;
 							}
 
-							ConsoleWriter($"\tPotential Wash: {ticker} : {l.DateOpened:d} - {l.GainLossType} - {l.Quantity} shares @ {l.UnitProceeds:C2} - {l.DateClosed:d} - {l.GainLoss:C2} ");
+							ConsoleWriter($"\tPotential Wash: {ticker} : {glr.DateOpened:d} - {glr.GainLossType} - {glr.Quantity} shares @ {glr.UnitProceeds:C2} - {glr.DateClosed:d} - {glr.GainLoss:C2} ");
 
 							var washMsg = $"\t\t{washShares} alternate shares purchased,"
 										+ (lossAllowed == 0 ? $" entire loss disallowed" :
@@ -259,8 +280,8 @@ namespace Carrotware.IncomeParser.Entities {
 										+ $" - {lossAllowed:C2} max loss, add back {adjustment:C2} ";
 							ConsoleWriter(washMsg);
 
-							foreach (var b in washes.OrderBy(x => x.SecuritySymbol).OrderBy(x => x.TransactionDate).OrderBy(x => x.AccountIdentity)) {
-								ConsoleWriter($"\t\t{b.AccountIdentity} :  {b.SecuritySymbol} - {b.TransactionDate:d} - {b.Quantity} @ {b.UnitPrice:C2}");
+							foreach (var w in washes.OrderBy(x => x.SecuritySymbol).OrderBy(x => x.TransactionDate).OrderBy(x => x.AccountIdentity)) {
+								ConsoleWriter($"\t\t{w.AccountIdentity} :  {w.SecuritySymbol} - {w.TransactionDate:d} - {w.Quantity} @ {w.UnitPrice:C2}");
 							}
 						}
 					}
@@ -292,7 +313,7 @@ namespace Carrotware.IncomeParser.Entities {
 						sb.Append($"{stgQ_Adj:C2}".QuoteForCSV() + ",");
 						sb.Append($"{adjQS:C2}".QuoteForCSV() + ",");
 						sb.AppendLine();
-						sb.WriteFile(fileNameCSV);
+						// sb.WriteFile(fileNameCSV);
 						sb.Clear();
 					} else {
 						ConsoleWriter("\tNo detected wash sales, no quarterly adjustment");
@@ -325,7 +346,7 @@ namespace Carrotware.IncomeParser.Entities {
 				sb.Append("ST CG Adjusted".QuoteForCSV() + ",");
 				sb.Append("ST CG Adjustment".QuoteForCSV() + ",");
 				sb.AppendLine();
-				sb.WriteFile(fileNameCSV);
+				// sb.WriteFile(fileNameCSV);
 				sb.Clear();
 
 				sb.Append(",");
@@ -338,7 +359,7 @@ namespace Carrotware.IncomeParser.Entities {
 				sb.Append($"{adjS:C2}".QuoteForCSV() + ",");
 				sb.Append($"{adjYearShort:C2}".QuoteForCSV() + ",");
 				sb.AppendLine();
-				sb.WriteFile(fileNameCSV);
+				// sb.WriteFile(fileNameCSV);
 				sb.Clear();
 			} else {
 				ConsoleWriter("\tNo detected wash sales, no annual adjustment");
@@ -346,7 +367,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 			sb.Append(",");
 			sb.AppendLine();
-			sb.WriteFile(fileNameCSV);
+			// sb.WriteFile(fileNameCSV);
 			sb.Clear();
 
 			ConsoleWriter("-----------------------------------------------------------------------");
