@@ -223,15 +223,7 @@ namespace Carrotware.IncomeParser.Entities {
 					var losses = gains.Where(x => x.GainLoss < 0 && x.Quantity != 0);
 
 					foreach (var glr in losses) {
-						var washes = new List<WashDetail>();
-						var washStart = glr.DateClosed.AddDays(-31);
-						var washEnd = glr.DateClosed.AddDays(31);
 						var ticker = glr.SecuritySymbol.ToUpperInvariant();
-
-						// as there are sometimes several lots, proportionally share any wash sales across lots
-						var lotCount = losses.Where(x => x.SecuritySymbol == ticker).Count();
-						var totalQuantityLost = losses.Where(x => x.SecuritySymbol == ticker).Sum(x => x.Quantity);
-						var proportionLoss = glr.Quantity / totalQuantityLost;
 
 						var alternates = aliases.Where(x => x.Select(y => y.ToUpperInvariant()).Contains(ticker)).FirstOrDefault();
 						if (alternates == null) {
@@ -241,29 +233,20 @@ namespace Carrotware.IncomeParser.Entities {
 							alternates.Add(ticker);
 						}
 
-						foreach (var d in _documents.Where(x => x is IAccountTransaction)) {
-							var doc = (IAccountTransaction)d;
-							var washesFound = doc.TransactionRows.Where(x => alternates.Contains(x.SecuritySymbol.ToUpperInvariant())
-												&& x.TransactionType == TransactionType.Buy
-												&& x.TransactionDate >= washStart && x.TransactionDate <= washEnd)
-											.Select(x => new WashDetail(d, x));
-
-							washes = washes.Union(washesFound).ToList();
-						}
+						var wash = new WashMatch(glr, alternates, gains);
+						var washes = wash.ProcessDocuments(_documents);
 
 						if (washes.Any()) {
-							var wash = new WashMatch(ticker, alternates, glr, washes);
-							wash.TotalQuantityLost = totalQuantityLost;
-							wash.LotCount = lotCount;
-							wash.ProportionLoss = proportionLoss;
 							quarter.WashMatches.Add(wash);
 
-							var washShares = washes.Sum(x => x.Quantity);
-							var fracAllowed = 1 - (washShares < glr.Quantity ? (washShares / glr.Quantity) : 1);
-							var lossAllowed = fracAllowed * glr.GainLoss / proportionLoss;
-							var adjProportionLost = fracAllowed / proportionLoss;
-
-							var adjustment = -1 * (glr.GainLoss - lossAllowed);
+							var totalQuantityLost = wash.TotalQuantityLost;
+							var lotCount = wash.LotCount;
+							var proportionLoss = wash.ProportionLoss;
+							var washShares = wash.WashShares;
+							var fracAllowed = wash.FracAllowed;
+							var lossAllowed = wash.LossAllowed;
+							var adjProportionLost = wash.AdjProportionLost;
+							var adjustment = wash.Adjustment;
 
 							if (glr.GainLossType == GainLossType.Long) {
 								adjQL = adjQL + adjustment;

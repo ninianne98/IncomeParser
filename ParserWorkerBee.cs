@@ -94,10 +94,12 @@ public class ParserWorkerBee {
 			b.PrintOutput();
 		}
 
-		Thread.Sleep(250);
+		Thread.Sleep(500);
 
 		var report = new XlsxExport(brokers);
 		report.GenerateReport();
+
+		Thread.Sleep(500);
 
 		Console.WriteLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 	}
