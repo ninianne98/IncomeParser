@@ -1,14 +1,6 @@
-﻿namespace Carrotware.IncomeParser.Helpers {
+﻿using System.ComponentModel;
 
-	public enum BrokerIdentity {
-		Unknown,
-		Schwab,
-		JPMorganChase,
-		Fidelity,
-		MerrillEdge,
-	}
-
-	//=============================
+namespace Carrotware.IncomeParser.Helpers {
 
 	public enum FileExtractType {
 		Unknown,
@@ -20,9 +12,17 @@
 
 	public enum IncomeType {
 		Unknown,
+
+		[Description("Long Term CG")]
 		LongTermCG,
+
+		[Description("Short Term GG")]
 		ShortTermGG,
+
+		[Description("Dividend")]
 		Dividend,
+
+		[Description("Interest")]
 		Interest,
 	}
 

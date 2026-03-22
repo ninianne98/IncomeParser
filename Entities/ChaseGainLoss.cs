@@ -18,7 +18,7 @@ namespace Carrotware.IncomeParser.Entities {
 			base.SetFileType();
 
 			this.FileExtractType = FileExtractType.GainLoss;
-			this.BrokerIdentity = BrokerIdentity.JPMorganChase;
+			this.BrokerIdentity = ChaseBrokerSummary.BROKER_SUMMARY_IDENTITY;
 		}
 
 		public override void ParseFile() {
@@ -55,6 +55,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 								var row = new GainLossRow(this.Rows[r]);
 								row.SecuritySymbol = GetTicker(rh);
+								row.SecurityDescription = rh.ReadEmptyCell("Description");
 
 								row.Quantity = rh.ReadCell("Quantity").StringToDecimal() ?? 0;
 								row.UnitCost = rh.ReadCell("Unit Cost Basis").StringToDecimal() ?? 0;
@@ -73,7 +74,13 @@ namespace Carrotware.IncomeParser.Entities {
 									var ltcg = rh.ReadCell("Long Term Realized Gain Loss USD").StringToDecimal() ?? 0;
 									var stcg = rh.ReadCell("Short Term Realized Gain Loss USD").StringToDecimal() ?? 0;
 
-									row.GainLossType = (ltcg != 0) || (stcg == 0) ? GainLossType.Long : GainLossType.Short;
+									row.GainLossType = ltcg != 0 ? GainLossType.Long : GainLossType.Short;
+
+									if (ltcg == stcg) {
+										//var dayDelta = Math.Abs((row.DateClosed - row.DateOpened).TotalDays);
+										row.GainLossType = (row.DateOpened.AddYears(1).Date <= row.DateClosed.Date)
+													? GainLossType.Long : GainLossType.Short;
+									}
 
 									row.Proceeds = rh.ReadCell("Market Cost/Proceeds USD").StringToDecimal() ?? 0;
 									row.CostBasis = rh.ReadCell("Cost Basis USD").StringToDecimal() ?? 0;

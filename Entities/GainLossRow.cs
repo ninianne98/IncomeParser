@@ -21,6 +21,7 @@ namespace Carrotware.IncomeParser.Entities {
 		public GainLossType GainLossType { get; set; } = GainLossType.Unknown;
 
 		public string SecuritySymbol { get; set; } = string.Empty;
+		public string SecurityDescription { get; set; } = string.Empty;
 		public DateTime DateOpened { get; set; } = DateTime.MinValue;
 		public DateTime DateClosed { get; set; } = DateTime.MinValue;
 

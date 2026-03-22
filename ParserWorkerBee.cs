@@ -36,16 +36,28 @@ public class ParserWorkerBee {
 		}
 	}
 
+	public static string OutputCSV_Year(int year) {
+		return string.Format("Statement_{0}_{1:yyMMdd}_{1:HHmmss}.csv", year, AppDateTime);
+	}
+
 	public static string OutputReport {
 		get {
 			return string.Format("Statement_{0:yyMMdd}_{0:HHmmss}.txt", AppDateTime);
 		}
 	}
 
+	public static string OutputReportYear(int year) {
+		return string.Format("Statement_{0}_{1:yyMMdd}_{1:HHmmss}.txt", year, AppDateTime);
+	}
+
 	public static string OutputReportExcel {
 		get {
 			return string.Format("Statement_{0:yyMMdd}_{0:HHmmss}.xlsx", AppDateTime);
 		}
+	}
+
+	public static string OutputReportExcelYear(int year) {
+		return string.Format("Statement_{0}_{1:yyMMdd}_{1:HHmmss}.xlsx", year, AppDateTime);
 	}
 
 	public ParserWorkerBee() {
@@ -55,6 +67,9 @@ public class ParserWorkerBee {
 	}
 
 	public void RunParser() {
+		var factory = new BrokerFileFactory();
+		var documents = new List<IFileCoreData>();
+
 		string settingFolder = _configuration["MainDocumentFolder"] ?? string.Empty;
 		Console.WriteLine($"Main Document Folder : {settingFolder}");
 
@@ -62,46 +77,41 @@ public class ParserWorkerBee {
 						.Select(x => new FileInfo(x))
 						.Where(x => x.Name.StartsWith("Statement_") == false && x.DirectoryName != settingFolder).ToList();
 
-		var documents = new List<IFileCoreData>();
-		var factory = new BrokerFileFactory();
-
 		foreach (var file in files) {
 			//Console.WriteLine($"\t\tFile : {file.FullName}");
-			var fd = factory.GenerateFileData(file);
-			fd.ParseFile();
-			documents.Add(fd);
+			var fcd = factory.GenerateFileData(file);
+			fcd.ParseFile();
+			documents.Add(fcd);
 		}
 
 		//PrintOutput(documents);
-
-		var brokers = documents.Where(x => (x is IAccountGainLoss))
-						.Select(x => new BrokerSummary(x.BrokerIdentity, x.AccountIdentity)).ToList();
-
-		foreach (var b in brokers) {
-			b.LoadData(documents);
-		}
+		var brokers = factory.LoadBrokerDocuments(documents);
 
 		Thread.Sleep(250);
 		//string fileNameCSV = Path.Join(settingFolder, OutputCSV);
 		//File.WriteAllText(fileNameCSV, string.Empty);
-		string fileNameTxt = Path.Join(settingFolder, OutputReport);
+
+		var year = brokers.Max(x => x.Year);
+		//string fileNameTxt = Path.Join(settingFolder, OutputReport);
+		string fileNameTxt = Path.Join(settingFolder, ParserWorkerBee.OutputReportYear(year));
 		File.WriteAllText(fileNameTxt, string.Empty);
 
 		Thread.Sleep(250);
 
-		foreach (var b in brokers.OrderBy(x => x.AccountIdentity).OrderBy(x => x.BrokerIdentity)) {
-			Console.WriteLine("=====================================================");
-			b.PrintOutput();
-		}
+		factory.PrintOutput(brokers);
 
 		Thread.Sleep(500);
+
+		Program.PrintDisclaimer();
+		var tax = new TaxDataCollector();
+		tax.Init(brokers);
 
 		var report = new XlsxExport(brokers);
 		report.GenerateReport();
 
-		Thread.Sleep(500);
-
 		Console.WriteLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+
+		Thread.Sleep(500);
 	}
 
 	protected void PrintOutput(List<IFileCoreData> documents) {

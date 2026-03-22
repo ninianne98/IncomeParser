@@ -18,7 +18,7 @@ namespace Carrotware.IncomeParser.Entities {
 			base.SetFileType();
 
 			this.FileExtractType = FileExtractType.TransactionLog;
-			this.BrokerIdentity = BrokerIdentity.Schwab;
+			this.BrokerIdentity = SchwabBrokerSummary.BROKER_SUMMARY_IDENTITY;
 		}
 
 		public override void ParseFile() {
@@ -54,7 +54,8 @@ namespace Carrotware.IncomeParser.Entities {
 								row.SecuritySymbol = GetTicker(rh);
 								row.ActionText = rh.ReadCell("Action") ?? string.Empty;
 
-								row.TransactionDate = rh.ReadCell("Date").StringToDate() ?? DateTime.Now;
+								row.TransactionDate = GetTradeDate(rh) ?? DateTime.Now;
+								row.SettlementDate = GetSettleDate(rh) ?? DateTime.Now;
 
 								if (row.ActionText.ToLowerInvariant().Contains("dividend")
 									|| row.ActionText.ToLowerInvariant().EndsWith(" div")
@@ -65,8 +66,8 @@ namespace Carrotware.IncomeParser.Entities {
 									row.TransactionType = TransactionType.Dividend;
 								} else {
 									if (row.ActionText.ToLowerInvariant().Contains("journal")
-										|| row.ActionText.ToLowerInvariant().Contains("deposit")
 										|| row.ActionText.ToLowerInvariant().Contains("transfer")
+										|| row.ActionText.ToLowerInvariant().Contains("deposit")
 										|| row.ActionText.ToLowerInvariant().Contains("redemption")
 										|| row.ActionText.ToLowerInvariant().Contains("spin")
 										|| row.ActionText.ToLowerInvariant().Contains("tax")

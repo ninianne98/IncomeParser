@@ -18,7 +18,7 @@ namespace Carrotware.IncomeParser.Entities {
 			base.SetFileType();
 
 			this.FileExtractType = FileExtractType.TransactionLog;
-			this.BrokerIdentity = BrokerIdentity.MerrillEdge;
+			this.BrokerIdentity = MerrillBrokerSummary.BROKER_SUMMARY_IDENTITY;
 		}
 
 		public override void ParseFile() {
@@ -52,12 +52,14 @@ namespace Carrotware.IncomeParser.Entities {
 									row.SecuritySymbol = GetTicker(rh);
 									row.ActionText = description ?? string.Empty;
 
-									row.TransactionDate = rh.ReadCell("Settlement Date").StringToDate() ?? DateTime.Now;
+									row.TransactionDate = GetTradeDate(rh) ?? DateTime.Now;
+									row.SettlementDate = GetSettleDate(rh) ?? DateTime.Now;
 
 									if (row.ActionText.ToLowerInvariant().StartsWith("dividend")) {
 										row.TransactionType = TransactionType.Dividend;
 									} else {
 										if (row.ActionText.ToLowerInvariant().StartsWith("journal")
+											|| row.ActionText.ToLowerInvariant().StartsWith("redemption")
 											|| row.ActionText.ToLowerInvariant().StartsWith("reinvestment")
 											|| row.ActionText.ToLowerInvariant().StartsWith("direct deposit")
 											|| row.ActionText.ToLowerInvariant().StartsWith("deposit")
@@ -67,8 +69,7 @@ namespace Carrotware.IncomeParser.Entities {
 										if (row.ActionText.ToLowerInvariant().Contains("interest")) {
 											row.TransactionType = TransactionType.Interest;
 										}
-										if (row.ActionText.ToLowerInvariant().StartsWith("sale")
-											|| row.ActionText.ToLowerInvariant().StartsWith("redemption")) {
+										if (row.ActionText.ToLowerInvariant().StartsWith("sale")) {
 											row.TransactionType = TransactionType.Sell;
 										}
 										if (row.ActionText.ToLowerInvariant().StartsWith("purchase")

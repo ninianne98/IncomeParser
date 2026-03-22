@@ -27,5 +27,29 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 			return "N/A";
 		}
+
+		protected DateTime? GetTradeDate(RowHelper rh) {
+			var colName = new string[3] { "Trade Date", "Post Date", "Date" };
+
+			foreach (var c in colName) {
+				if (rh.Exists(c)) {
+					return rh.ReadCell(c).StringToDate();
+				}
+			}
+
+			return null;
+		}
+
+		protected DateTime? GetSettleDate(RowHelper rh) {
+			var colName = new string[3] { "Settlement Date", "Post Date", "Date" };
+
+			foreach (var c in colName) {
+				if (rh.Exists(c)) {
+					return rh.ReadCell(c).StringToDate();
+				}
+			}
+
+			return null;
+		}
 	}
 }

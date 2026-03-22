@@ -18,7 +18,7 @@ namespace Carrotware.IncomeParser.Entities {
 			base.SetFileType();
 
 			this.FileExtractType = FileExtractType.GainLoss;
-			this.BrokerIdentity = BrokerIdentity.Schwab;
+			this.BrokerIdentity = SchwabBrokerSummary.BROKER_SUMMARY_IDENTITY;
 		}
 
 		public override void ParseFile() {
@@ -52,7 +52,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 									var row = new GainLossRow(this.Rows[r]);
 									row.SecuritySymbol = GetTicker(rh);
-
+									row.SecurityDescription = rh.ReadEmptyCell("Name");
 									row.DateOpened = rh.ReadCell("Opened Date").StringToDate() ?? DateTime.Now;
 									row.DateClosed = rh.ReadCell("Closed Date").StringToDate() ?? DateTime.Now;
 

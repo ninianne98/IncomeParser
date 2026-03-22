@@ -22,7 +22,7 @@ namespace Carrotware.IncomeParser.Entities {
 		public string ActionText { get; set; } = string.Empty;
 		public TransactionType TransactionType { get; set; } = TransactionType.Unknown;
 		public DateTime TransactionDate { get; set; } = DateTime.MinValue;
-
+		public DateTime SettlementDate { get; set; } = DateTime.MinValue;
 		public decimal Quantity { get; set; } = 0;
 		public decimal UnitPrice { get; set; } = 0;
 		public decimal Fees { get; set; } = 0;

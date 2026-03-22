@@ -18,7 +18,7 @@ namespace Carrotware.IncomeParser.Entities {
 			base.SetFileType();
 
 			this.FileExtractType = FileExtractType.TransactionLog;
-			this.BrokerIdentity = BrokerIdentity.JPMorganChase;
+			this.BrokerIdentity = ChaseBrokerSummary.BROKER_SUMMARY_IDENTITY;
 		}
 
 		public override void ParseFile() {
@@ -54,7 +54,8 @@ namespace Carrotware.IncomeParser.Entities {
 								row.SecuritySymbol = GetTicker(rh);
 								row.ActionText = rh.ReadCell("Type") ?? string.Empty;
 
-								row.TransactionDate = rh.ReadCell("Settlement Date").StringToDate() ?? DateTime.Now;
+								row.TransactionDate = GetTradeDate(rh) ?? DateTime.Now;
+								row.SettlementDate = GetSettleDate(rh) ?? DateTime.Now;
 
 								if (row.ActionText.ToLowerInvariant().Contains("dividend")) {
 									row.TransactionType = TransactionType.Dividend;
@@ -70,6 +71,7 @@ namespace Carrotware.IncomeParser.Entities {
 								} else {
 									if (row.ActionText.ToLowerInvariant().Contains("journal")
 										|| row.ActionText.ToLowerInvariant().Contains("jnl")
+										|| row.ActionText.ToLowerInvariant().Contains("red")
 										|| row.ActionText.ToLowerInvariant().Contains("acp")
 										|| row.ActionText.ToLowerInvariant().Contains("wdl")
 										|| row.ActionText.ToLowerInvariant().Contains("dbs")

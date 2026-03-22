@@ -18,7 +18,7 @@ namespace Carrotware.IncomeParser.Entities {
 			base.SetFileType();
 
 			this.FileExtractType = FileExtractType.GainLoss;
-			this.BrokerIdentity = BrokerIdentity.MerrillEdge;
+			this.BrokerIdentity = MerrillBrokerSummary.BROKER_SUMMARY_IDENTITY;
 		}
 
 		public override void ParseFile() {
@@ -49,11 +49,14 @@ namespace Carrotware.IncomeParser.Entities {
 								}
 
 								var row = new GainLossRow(this.Rows[r]);
+								// Merrill uses gibberish symbols...
+								// must patch later
 								row.SecuritySymbol = GetTicker(rh);
 
 								row.DateOpened = rh.ReadCell("Acquisition Date").StringToDate() ?? DateTime.Now;
 								row.DateClosed = rh.ReadCell("Liquidation Date").StringToDate() ?? DateTime.Now;
 
+								row.SecurityDescription = rh.ReadEmptyCell("Security Description");
 								row.GainLossType = rh.ReadEmptyCell("Short/Long").ToLowerInvariant().Contains("short") ? GainLossType.Short : GainLossType.Long;
 
 								row.Quantity = rh.ReadCell("Quantity").StringToDecimal() ?? 0;

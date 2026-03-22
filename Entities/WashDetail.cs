@@ -20,7 +20,7 @@ namespace Carrotware.IncomeParser.Entities {
 			this.TransactionAmount = row.TransactionAmount;
 		}
 
-		public BrokerIdentity BrokerIdentity { get; set; }
+		public string BrokerIdentity { get; set; }
 		public FileExtractType FileExtractType { get; set; }
 		public string AccountIdentity { get; set; } = string.Empty;
 

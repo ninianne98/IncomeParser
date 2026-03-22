@@ -1,9 +1,46 @@
-﻿using System.Globalization;
+﻿using System.ComponentModel;
+using System.Globalization;
+using System.Reflection;
 using System.Text;
 
 namespace Carrotware.IncomeParser.Helpers {
 
 	public static class ParseHelper {
+
+		public static string GetDescription<T>(this T source) {
+			if (source == null) return string.Empty;
+
+			var type = source.GetType();
+			MemberInfo memberInfo;
+
+			if (type.IsEnum) {
+				memberInfo = type.GetField(source.ToString());
+			} else {
+				memberInfo = type;
+			}
+
+			var attribute = memberInfo?
+				.GetCustomAttributes(typeof(DescriptionAttribute), false)
+				.FirstOrDefault() as DescriptionAttribute;
+
+			return attribute?.Description ?? source.ToString() ?? typeof(T).ToString() ?? string.Empty;
+		}
+
+		public static bool IsAlphaNumeric(this string text) {
+			return !string.IsNullOrEmpty(text) && text.All(Char.IsLetterOrDigit);
+		}
+
+		public static bool IsAlphabetic(this string text) {
+			return !string.IsNullOrEmpty(text) && text.All(Char.IsLetter);
+		}
+
+		public static bool HasLetters(this string text) {
+			return !string.IsNullOrEmpty(text) && text.Any(Char.IsLetter);
+		}
+
+		public static bool HasDigits(this string text) {
+			return !string.IsNullOrEmpty(text) && text.Any(Char.IsDigit);
+		}
 
 		public static string? StringSafeTrim(this string? val) {
 			if (!string.IsNullOrEmpty(val)) {

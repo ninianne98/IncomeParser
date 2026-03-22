@@ -19,6 +19,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 		public void Calculate() {
 			var glr = this.GainLossRow;
+
 			var ticker = glr.SecuritySymbol.ToUpperInvariant();
 			var washStart = glr.DateClosed.AddDays(-31).Date;
 			var washEnd = glr.DateClosed.AddDays(31).Date;
@@ -60,6 +61,11 @@ namespace Carrotware.IncomeParser.Entities {
 					washes = washes.Union(washesFound).OrderBy(x => x.TransactionDate).ToList();
 				}
 			}
+
+			washes = washes.OrderBy(x => x.SecuritySymbol)
+					.OrderByDescending(x => x.Quantity)
+					.OrderByDescending(x => x.TransactionAmount)
+					.OrderBy(x => x.TransactionDate).ToList();
 
 			this.WashDetails = washes;
 

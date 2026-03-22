@@ -28,13 +28,12 @@ namespace Carrotware.IncomeParser.Interfaces {
 		}
 
 		public virtual void SetFileType() {
-			this.BrokerIdentity = BrokerIdentity.Unknown;
 			this.FileExtractType = FileExtractType.Unknown;
 		}
 
-		public FileInfo FileInfo { get; set; }
+		public FileInfo FileInfo { get; set; } // dont set a default!
 		public List<string> Rows { get; set; } = new List<string>();
-		public BrokerIdentity BrokerIdentity { get; set; }
+		public string BrokerIdentity { get; set; } = "Unknown";
 		public FileExtractType FileExtractType { get; set; }
 		public string AccountIdentity { get; set; } = string.Empty;
 	}
