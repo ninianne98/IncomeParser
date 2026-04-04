@@ -10,18 +10,18 @@ namespace Carrotware.IncomeParser.Helpers {
 		public static string GetDescription<T>(this T source) {
 			if (source == null) return string.Empty;
 
+			MemberInfo? memberInfo;
 			var type = source.GetType();
-			MemberInfo memberInfo;
 
 			if (type.IsEnum) {
-				memberInfo = type.GetField(source.ToString());
+				memberInfo = type.GetField(source.ToString() ?? "");
 			} else {
 				memberInfo = type;
 			}
 
 			var attribute = memberInfo?
-				.GetCustomAttributes(typeof(DescriptionAttribute), false)
-				.FirstOrDefault() as DescriptionAttribute;
+								.GetCustomAttributes(typeof(DescriptionAttribute), false)
+								.FirstOrDefault() as DescriptionAttribute;
 
 			return attribute?.Description ?? source.ToString() ?? typeof(T).ToString() ?? string.Empty;
 		}
@@ -54,7 +54,9 @@ namespace Carrotware.IncomeParser.Helpers {
 			if (!string.IsNullOrEmpty(val)) {
 				val = val.MoneyStringClean();
 
-				return Convert.ToDecimal(val);
+				if (!string.IsNullOrEmpty(val)) {
+					return Convert.ToDecimal(val);
+				}
 			}
 
 			return null;
@@ -72,7 +74,7 @@ namespace Carrotware.IncomeParser.Helpers {
 			string v2 = val.StringSafeTrim() ?? string.Empty;
 
 			if (!string.IsNullOrEmpty(v2)) {
-				if (v2 == "-") {
+				if (v2 == "-" || v2 == "--" || v2 == "–" || v2 == "—") {
 					v2 = string.Empty;
 				}
 
@@ -304,6 +306,21 @@ namespace Carrotware.IncomeParser.Helpers {
 			using (var sw = new StreamWriter(fileName, append)) {
 				sw.Write(sb.ToString());
 				sw.Flush();
+			}
+		}
+
+		public static string ReadFirst2KB(string filePath) {
+			return ReadFirstXKB(2, filePath);
+		}
+
+		public static string ReadFirstXKB(int kb, string filePath) {
+			int bytesToRead = kb * 1024;
+			byte[] buffer = new byte[bytesToRead];
+
+			using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read)) {
+				int bytesRead = fs.Read(buffer, 0, bytesToRead);
+
+				return Encoding.UTF8.GetString(buffer, 0, bytesRead);
 			}
 		}
 	}

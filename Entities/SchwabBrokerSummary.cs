@@ -20,16 +20,26 @@ namespace Carrotware.IncomeParser.Entities {
 			var filePath = file.FullName.ToLowerInvariant();
 			bool hasMatch = this.BrokerPathFragments.Any(x => filePath.ToLowerInvariant().Contains(x));
 
-			if (hasMatch && rows.Count >= 3) {
-				if (filePath.Contains("schwab") || filePath.Contains("chuck")) {
-					if (rows[0].ToLowerInvariant().Contains("realized gain/loss")
-						&& rows[1].ToLowerInvariant().Contains("closed date")
-						&& rows[1].ToLowerInvariant().Contains("opened date")
-						&& rows[1].ToLowerInvariant().Contains("cost basis")) {
-						return new SchwabGainLoss(file, rows);
-					} else {
-						return new SchwabTransaction(file, rows);
-					}
+			if (hasMatch && rows.Count >= 2) {
+				if (filePath.Contains("gainloss")) {
+					return new SchwabGainLoss(file, rows);
+				}
+				if (filePath.Contains("transactions")) {
+					return new SchwabTransaction(file, rows);
+				}
+
+				if (rows[0].ToLowerInvariant().Contains("realized gain/loss")
+					&& rows[1].ToLowerInvariant().Contains("closed date")
+					&& rows[1].ToLowerInvariant().Contains("opened date")
+					&& rows[1].ToLowerInvariant().Contains("cost basis")) {
+					return new SchwabGainLoss(file, rows);
+				} else if (rows[0].ToLowerInvariant().Contains("gain/loss (%)")
+					&& rows[0].ToLowerInvariant().Contains("closed date")
+					&& rows[0].ToLowerInvariant().Contains("opened date")
+					&& rows[0].ToLowerInvariant().Contains("cost basis")) {
+					return new SchwabGainLoss(file, rows);
+				} else {
+					return new SchwabTransaction(file, rows);
 				}
 			}
 

@@ -37,6 +37,10 @@
 
 		public List<QuarterlyTotalRow> QuarterlyTotalRows { get; set; } = new List<QuarterlyTotalRow>();
 
+		public List<TransactionDetail> IncomeDetails { get; set; } = new List<TransactionDetail>();
+
+		public List<TransactionDetail> SaleDetails { get; set; } = new List<TransactionDetail>();
+
 		public List<WashMatch> WashMatches { get; set; } = new List<WashMatch>();
 	}
 }

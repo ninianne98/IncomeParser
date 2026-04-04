@@ -3,32 +3,31 @@ using Carrotware.IncomeParser.Interfaces;
 
 namespace Carrotware.IncomeParser.Entities {
 
-	public class WashDetail {
+	public class TransactionDetail {
 
-		public WashDetail() { }
+		public TransactionDetail() { }
 
-		public WashDetail(IFileCoreData data, TransactionRow row) {
+		public TransactionDetail(IBrokerSummary data, TransactionRow row) {
 			this.BrokerIdentity = data.BrokerIdentity;
 			this.AccountIdentity = data.AccountIdentity;
-			this.FileExtractType = data.FileExtractType;
 
 			this.SecuritySymbol = row.SecuritySymbol;
+			if (string.IsNullOrEmpty(this.SecuritySymbol)) {
+				this.SecuritySymbol = row.TransactionType.ToString();
+			}
+
+			this.TransactionType = row.TransactionType;
 			this.TransactionDate = row.TransactionDate;
-			this.Quantity = row.Quantity;
-			this.UnitPrice = row.UnitPrice;
-			this.Fees = row.Fees;
 			this.TransactionAmount = row.TransactionAmount;
 		}
 
 		public string BrokerIdentity { get; set; } = string.Empty;
-		public FileExtractType FileExtractType { get; set; }
 		public string AccountIdentity { get; set; } = string.Empty;
 
 		public string SecuritySymbol { get; set; } = string.Empty;
+
+		public TransactionType TransactionType { get; set; } = TransactionType.Unknown;
 		public DateTime TransactionDate { get; set; } = DateTime.MinValue;
-		public decimal Quantity { get; set; } = 0;
-		public decimal UnitPrice { get; set; } = 0;
-		public decimal Fees { get; set; } = 0;
 		public decimal TransactionAmount { get; set; } = 0;
 	}
 }

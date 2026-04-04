@@ -1,13 +1,86 @@
-﻿namespace Carrotware.IncomeParser.Helpers {
+﻿using Microsoft.VisualBasic.FileIO;
+
+namespace Carrotware.IncomeParser.Helpers {
 
 	public class RowHelper {
 		private Dictionary<string, int> _dict = new Dictionary<string, int>();
 		private string[] _rowData = new string[1];
+		private TextFieldParser? _parser = null;
+		private int _rowIndex = -1;
 
 		public RowHelper() { }
 
 		public RowHelper(string[]? headerRow) {
 			LoadHeader(headerRow);
+		}
+
+		public TextFieldParser LoadFile(string path) {
+			return LoadFile(path, ",");
+		}
+
+		public TextFieldParser LoadFile(string path, string delim) {
+			return LoadFile(path, [delim]);
+		}
+
+		public TextFieldParser LoadFile(string path, string[] delims) {
+			_parser = new TextFieldParser(path);
+			_parser.HasFieldsEnclosedInQuotes = true;
+			_parser.TextFieldType = FieldType.Delimited;
+			_parser.SetDelimiters(delims);
+
+			return _parser;
+		}
+
+		public List<string[]> ReadFile() {
+			_rowIndex = -1;
+			string[] rowValues = [];
+			this.FileRows = new List<string[]>();
+
+			if (_parser != null) {
+				while (!_parser.EndOfData) {
+					rowValues = _parser.ReadFields() ?? [];
+
+					this.FileRows.Add(rowValues);
+				}
+			}
+
+			return this.FileRows;
+		}
+
+		public void CloseFile() {
+			if (_parser != null) {
+				_parser.Close();
+				_parser.Dispose();
+				_parser = null;
+			}
+		}
+
+		public string[] GetNextRow() {
+			_rowIndex++;
+
+			return LoadRow(_rowIndex);
+		}
+
+		public string[] LoadRow(int rowIndex) {
+			if (this.FileRows.Count > rowIndex) {
+				_rowIndex = rowIndex;
+				var row = this.FileRows[rowIndex];
+
+				LoadRow(row);
+
+				return row;
+			}
+
+			return [];
+		}
+
+		public void SetHeaderRow(int rowIndex) {
+			if (this.FileRows.Count > rowIndex) {
+				_rowIndex = rowIndex;
+				Reset();
+				var row = this.FileRows[rowIndex];
+				LoadRow(row);
+			}
 		}
 
 		public void LoadRow(string[]? row) {
@@ -119,5 +192,7 @@
 			_rowData = new string[1];
 			_dict = new Dictionary<string, int>();
 		}
+
+		public List<string[]> FileRows { get; set; } = new List<string[]>();
 	}
 }

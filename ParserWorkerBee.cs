@@ -78,10 +78,17 @@ public class ParserWorkerBee {
 						.Where(x => x.Name.StartsWith("Statement_") == false && x.DirectoryName != settingFolder).ToList();
 
 		foreach (var file in files) {
-			//Console.WriteLine($"\t\tFile : {file.FullName}");
-			var fcd = factory.GenerateFileData(file);
-			fcd.ParseFile();
-			documents.Add(fcd);
+			try {
+				//Console.WriteLine($"\t\tFile : {file.FullName}");
+				var fcd = factory.GenerateFileData(file);
+				if (fcd != null) {
+					fcd.ParseFile();
+					documents.Add(fcd);
+				}
+			} catch (Exception ex) {
+				Console.WriteLine($"Exception : {file.FullName}");
+				Console.WriteLine(ex.Message);
+			}
 		}
 
 		//PrintOutput(documents);

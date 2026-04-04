@@ -1,8 +1,10 @@
 ﻿using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Interfaces;
+using DocumentFormat.OpenXml.Drawing.Charts;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.Configuration;
 using SpreadsheetLight;
+using SpreadsheetLight.Charts;
 using System.Data;
 using System.Drawing;
 using System.Text;
@@ -24,6 +26,9 @@ namespace Carrotware.IncomeParser.Helpers {
 		private const string Sheet_Unwashed = "Unwashed";
 		private const string Sheet_Washes = "Washes";
 		private const string Sheet_Sales = "Sales";
+		private const string Sheet_SalesTotal = "Sales Total";
+		private const string Sheet_Income = "Income";
+		private const string Sheet_IncomeTotal = "Income Totals";
 
 		private int _maxIncomeRows = 72; // max rows on income (4 quarters + year)
 		private int _starterRowQuarters = 4; // starting row
@@ -50,6 +55,72 @@ namespace Carrotware.IncomeParser.Helpers {
 
 		public int Year { get; set; } = DateTime.Now.Year;
 
+		public SLStyle StylePlain(SLDocument sl) {
+			var style = sl.CreateStyle();
+			style.Font.FontSize = _baseFont;
+			style.Font.Bold = false;
+			style.Font.FontColor = Color.Black;
+
+			return style;
+		}
+
+		public SLStyle StyleMoney(SLDocument sl) {
+			var style = sl.CreateStyle();
+			style.FormatCode = "$#,##0.00;[Red]($#,##0.00)";
+
+			return style;
+		}
+
+		public SLStyle StyleDate(SLDocument sl) {
+			var style = sl.CreateStyle();
+			style.FormatCode = "mm/dd/yyyy";
+
+			return style;
+		}
+
+		public SLStyle StylePercent(SLDocument sl) {
+			var style = sl.CreateStyle();
+			style.FormatCode = "0.00%";
+
+			return style;
+		}
+
+		public SLStyle StyleRowHead(SLDocument sl) {
+			var style = StylePlain(sl);
+			style.Alignment.Horizontal = HorizontalAlignmentValues.Right;
+			style.Font.Bold = true;
+
+			return style;
+		}
+
+		public SLStyle StyleHeadBase(SLDocument sl) {
+			var style = StyleCenteredBackground(sl, _color1);
+
+			return style;
+		}
+
+		public SLStyle StyleH2(SLDocument sl) {
+			var style = StylePlain(sl);
+			style.Font.Bold = true;
+			style.Font.FontColor = _color6;
+			style.Font.FontSize = _baseFont + 4;
+			style.Border.BottomBorder.BorderStyle = BorderStyleValues.Medium;
+			style.Border.BottomBorder.Color = _color6;
+
+			return style;
+		}
+
+		public SLStyle StyleCenteredBackground(SLDocument sl, Color color) {
+			var style = StylePlain(sl);
+
+			style.Font.Bold = true;
+			style.Alignment.Horizontal = HorizontalAlignmentValues.Center;
+			style.Alignment.Vertical = VerticalAlignmentValues.Bottom;
+			style.Fill.SetPattern(PatternValues.Solid, color, Color.Transparent);
+
+			return style;
+		}
+
 		public void GenerateReport() {
 			var year = this.BrokerSummaries.Max(x => x.Year);
 			if (year < 1970) {
@@ -69,6 +140,9 @@ namespace Carrotware.IncomeParser.Helpers {
 					sl.AddWorksheet(Sheet_Unwashed);
 					sl.AddWorksheet(Sheet_Washes);
 					sl.AddWorksheet(Sheet_Sales);
+					sl.AddWorksheet(Sheet_SalesTotal);
+					sl.AddWorksheet(Sheet_Income);
+					sl.AddWorksheet(Sheet_IncomeTotal);
 
 					Console.WriteLine("Creating quarterly reports ============");
 					CreateQuarterlyData(sl, Sheet_Washed);
@@ -78,8 +152,16 @@ namespace Carrotware.IncomeParser.Helpers {
 					CreateWashData(sl);
 					Console.WriteLine("Adding tax estimates ================");
 					UpdateTaxInfo(sl);
+
 					Console.WriteLine("Creating sale history ==================");
 					ReportSales(sl);
+					Console.WriteLine("Creating sale totals ==================");
+					ReportSalesTotal(sl);
+
+					Console.WriteLine("Creating income history ==================");
+					ReportIncome(sl);
+					Console.WriteLine("Creating income totals ==================");
+					ReportIncomeTotal(sl);
 
 					sl.SelectWorksheet(Sheet_Washed);
 					Console.WriteLine("Saving workbook ========================");
@@ -93,59 +175,512 @@ namespace Carrotware.IncomeParser.Helpers {
 			}
 		}
 
+		public DateTime GetEndOfMonthByDate(DateTime month) {
+			int days = DateTime.DaysInMonth(month.Year, month.Month);
+			return new DateTime(month.Year, month.Month, days, 23, 59, 59);
+		}
+
+		protected SLDocument ReportIncomeTotal(SLDocument sl) {
+			sl.SelectWorksheet(Sheet_IncomeTotal);
+			var brokers = this.BrokerSummaries;
+			int brokerCount = brokers.Count();
+			var year = this.Year;
+
+			int row = 0;
+
+			var stylePlain = StylePlain(sl);
+			var styleMainHead = StyleH2(sl);
+
+			var styleHead = StyleHeadBase(sl);
+			styleHead.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
+			styleHead.Border.TopBorder.Color = Color.Black;
+			styleHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
+			styleHead.Border.BottomBorder.Color = Color.Black;
+
+			var styleRowHead = StyleRowHead(sl);
+
+			var styleMoney = StyleMoney(sl);
+
+			var colFirst = 'A';
+			var colFirstIdx = ColLetterToNumber(colFirst);
+			var colMax = 'N';
+			var colMaxIdx = ColLetterToNumber(colMax);
+
+			var income = new List<TransactionDetail>();
+
+			foreach (var b in brokers) {
+				Console.WriteLine($"\tCreating income totals {b.AccountIdentity} ==========");
+
+				foreach (var q in b.QuarterRows) {
+					income = income.Union(q.IncomeDetails).ToList();
+				}
+			}
+
+			row = 1;
+			sl.SetCellValue($"A{row}", "Income By Month");
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
+			SLD_ResizeRow(sl, row, 20);
+
+			row++;
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleHead);
+			sl.SetCellValue($"B{row}", "Account");
+			SLD_ResizeRow(sl, row, 18);
+
+			row++;
+			foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+
+				sl.SetCellValue($"A{row}", b.BrokerIdentity);
+				sl.SetCellValue($"B{row}", b.AccountIdentity);
+
+				sl.SetCellStyle($"A{row}", styleRowHead);
+				sl.SetCellStyle($"C{row}", $"N{row}", styleMoney);
+
+				row++;
+			}
+
+			for (int m = 1; m <= 12; m++) {
+				row = 2;
+				var colMonthIdx = colFirstIdx + m + 1;
+				var colMonth = ColNumberToLetter(colMonthIdx);
+
+				var monthStart = new DateTime(year, m, 1);
+				var monthEnd = GetEndOfMonthByDate(monthStart);
+
+				//income for the month
+				var monthIncome = income.Where(x => x.TransactionDate >= monthStart && x.TransactionDate <= monthEnd).ToList();
+				//var totalIncome = monthIncome.Sum(x => x.TransactionAmount);
+
+				Console.WriteLine($"\tTabulating income totals for {monthStart.ToString("MMMM yyyy")} ==========");
+
+				sl.SetCellValue($"{colMonth}{row}", $"{monthStart.ToString("MMM yyyy")}");
+
+				row++;
+
+				foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
+					var accountIncome = monthIncome.Where(x => x.BrokerIdentity == b.BrokerIdentity && x.AccountIdentity == b.AccountIdentity);
+					var acctIncome = accountIncome.Sum(x => x.TransactionAmount);
+
+					sl.SetCellValue($"{colMonth}{row}", acctIncome);
+					sl.SetCellStyle($"{colMonth}{row}", styleMoney);
+
+					row++;
+				}
+
+				SLD_ResizeColumn(sl, colMonth, 16);
+			}
+
+			SLD_ResizeColumn(sl, "A", 16);
+			SLD_ResizeColumn(sl, "B", 18);
+
+			var accountColors = new Color[] { _color2, _color4, _color6, _color1, _color3, _color5 };
+
+			int lastRow = 2 + brokerCount;
+
+			var options = new SLCreateChartOptions() { RowsAsDataSeries = true };
+			var chart = sl.CreateChart(2, 2, lastRow, colMaxIdx, options);
+
+			for (int i = 0; i < brokerCount; i++) {
+				int seriesIndex = i + 1;
+				var color = accountColors[i % accountColors.Length];
+
+				var seriesOptions = chart.GetDataSeriesOptions(seriesIndex);
+
+				seriesOptions.Fill.SetSolidFill(color, 0);
+
+				chart.SetDataSeriesOptions(seriesIndex, seriesOptions);
+			}
+
+			chart.SetChartType(SLColumnChartType.ClusteredColumn);
+			chart.ShowChartLegend(LegendPositionValues.Right, false);
+
+			chart.SetChartPosition((lastRow + 2), 1, (lastRow + 25), 12);
+			sl.InsertChart(chart);
+
+			return sl;
+		}
+
+		protected SLDocument ReportIncomeTotal_2(SLDocument sl) {
+			sl.SelectWorksheet(Sheet_IncomeTotal);
+			var brokers = this.BrokerSummaries;
+			int brokerCount = brokers.Count();
+			var year = this.Year;
+
+			var stylePlain = StylePlain(sl);
+			var styleMainHead = StyleH2(sl);
+			var styleHead = StyleHeadBase(sl);
+			var styleRowHead = StyleRowHead(sl);
+
+			var styleMoney = StyleMoney(sl);
+			var styleDate = StyleDate(sl);
+
+			var colFirst = 'A';
+			var colFirstIdx = ColLetterToNumber(colFirst);
+			var colMax = 'D';
+			var colMaxIdx = ColLetterToNumber(colMax);
+
+			var income = new List<TransactionDetail>();
+
+			foreach (var b in brokers) {
+				Console.WriteLine($"\tCreating income totals {b.AccountIdentity} ==========");
+
+				foreach (var q in b.QuarterRows) {
+					income = income.Union(q.IncomeDetails).ToList();
+				}
+			}
+
+			int row = 1;
+
+			for (int m = 1; m <= 12; m++) {
+				var monthStart = new DateTime(year, m, 1);
+				var monthEnd = GetEndOfMonthByDate(monthStart);
+
+				//income for the month
+				var monthIncome = income.Where(x => x.TransactionDate >= monthStart && x.TransactionDate <= monthEnd).ToList();
+				var totalIncome = monthIncome.Sum(x => x.TransactionAmount);
+
+				Console.WriteLine($"\tTabulating income totals for {monthStart.ToString("MMMM yyyy")} ==========");
+
+				sl.SetCellValue($"{colFirst}{row}", $"{monthStart.ToString("MMMM yyyy")}");
+				sl.SetCellValue($"B{row}", " ");
+				sl.SetCellValue($"C{row}", " ");
+				sl.SetCellValue($"{colMax}{row}", 0);
+
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
+				//sl.SetCellStyle($"{colMax}{row}", styleMoney);
+
+				SLD_ResizeRow(sl, row, 20);
+				row++;
+
+				foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
+					sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+
+					sl.SetCellValue($"B{row}", b.BrokerIdentity);
+					sl.SetCellValue($"C{row}", b.AccountIdentity);
+
+					var accountIncome = monthIncome.Where(x => x.BrokerIdentity == b.BrokerIdentity && x.AccountIdentity == b.AccountIdentity);
+					var acctIncome = accountIncome.Sum(x => x.TransactionAmount);
+
+					sl.SetCellValue($"{colMax}{row}", acctIncome);
+
+					sl.SetCellStyle($"B{row}", styleRowHead);
+					sl.SetCellStyle($"{colMax}{row}", styleMoney);
+
+					row++;
+				}
+				row++;
+			}
+
+			SLD_ResizeColumn(sl, "A", 16);
+			SLD_ResizeColumn(sl, "B", 18);
+			SLD_ResizeColumn(sl, "C", 18);
+			SLD_ResizeColumn(sl, "D", 18);
+
+			return sl;
+		}
+
+		protected SLDocument ReportIncome(SLDocument sl) {
+			sl.SelectWorksheet(Sheet_Income);
+			var brokers = this.BrokerSummaries;
+			int brokerCount = brokers.Count();
+			var year = this.Year;
+
+			var stylePlain = StylePlain(sl);
+			var styleMainHead = StyleH2(sl);
+			var styleHead = StyleHeadBase(sl);
+			var styleRowHead = StyleRowHead(sl);
+
+			var styleMoney = StyleMoney(sl);
+			var styleDate = StyleDate(sl);
+
+			var colFirst = 'A';
+			var colFirstIdx = ColLetterToNumber(colFirst);
+			var colMax = 'I';
+			var colMaxIdx = ColLetterToNumber(colMax);
+
+			SLD_ResizeColumn(sl, "A", 14);
+			SLD_ResizeColumn(sl, "B", 18);
+
+			var income = new List<TransactionDetail>();
+
+			foreach (var b in brokers) {
+				Console.WriteLine($"\tCreating income history {b.AccountIdentity} ==========");
+
+				foreach (var q in b.QuarterRows) {
+					income = income.Union(q.IncomeDetails).ToList();
+				}
+			}
+
+			int row = 1;
+
+			for (int m = 1; m <= 12; m++) {
+				var monthStart = new DateTime(year, m, 1);
+				var monthEnd = GetEndOfMonthByDate(monthStart);
+
+				Console.WriteLine($"\tTabulating income for {monthStart.ToString("MMMM yyyy")} ==========");
+
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
+				sl.SetCellValue($"{colFirst}{row}", $"{monthStart.ToString("MMMM yyyy")}");
+				SLD_ResizeRow(sl, row, 20);
+				row++;
+
+				//income for the month
+				var monthIncome = income.Where(x => x.TransactionDate >= monthStart && x.TransactionDate <= monthEnd).ToList();
+
+				var sortedIncome = monthIncome
+										.GroupBy(i => i.SecuritySymbol)
+										.Select(g => new {
+											Ticker = g.Key,
+											TotalAmount = g.Sum(i => i.TransactionAmount)
+										})
+										.OrderByDescending(x => x.TotalAmount)
+										.ToList();
+
+				foreach (var inc in sortedIncome) {
+					sl.SetCellValue($"A{row}", inc.Ticker);
+					sl.SetCellValue($"I{row}", inc.TotalAmount);
+
+					sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleHead);
+					sl.SetCellStyle($"I{row}", styleMoney);
+
+					SLD_ResizeColumn(sl, "I", 18);
+
+					row++;
+
+					var tickerIncome = monthIncome.Where(x => x.SecuritySymbol.ToUpperInvariant() == inc.Ticker.ToUpperInvariant());
+
+					var rowct = tickerIncome.Count();
+					sl.SetCellStyle(row, colFirstIdx, (row + rowct + 3), colMaxIdx, stylePlain);
+
+					foreach (var mi in tickerIncome.OrderBy(x => x.BrokerIdentity)
+											.OrderBy(x => x.AccountIdentity)
+											.OrderBy(x => x.TransactionType)
+											.OrderBy(x => x.TransactionDate)
+											.OrderByDescending(x => x.TransactionAmount)) {
+						sl.SetCellValue($"B{row}", mi.BrokerIdentity);
+						sl.SetCellValue($"C{row}", mi.AccountIdentity);
+						sl.SetCellValue($"D{row}", mi.SecuritySymbol);
+
+						sl.SetCellValue($"F{row}", mi.TransactionType.GetDescription());
+						sl.SetCellValue($"G{row}", mi.TransactionDate);
+						sl.SetCellValue($"H{row}", mi.TransactionAmount);
+
+						sl.SetCellStyle($"G{row}", styleDate);
+						sl.SetCellStyle($"H{row}", styleMoney);
+
+						row++;
+					}
+				}
+
+				row = row + 3;
+			}
+
+			SLD_ResizeColumn(sl, "B", 18);
+			SLD_ResizeColumn(sl, "C", 18);
+			SLD_ResizeColumn(sl, "D", 18);
+			SLD_ResizeColumn(sl, "E", 18);
+			SLD_ResizeColumn(sl, "F", 18);
+			SLD_ResizeColumn(sl, "G", 18);
+			SLD_ResizeColumn(sl, "H", 18);
+			SLD_ResizeColumn(sl, "I", 18);
+
+			return sl;
+		}
+
+		protected SLDocument ReportSalesTotal(SLDocument sl) {
+			sl.SelectWorksheet(Sheet_SalesTotal);
+			var brokers = this.BrokerSummaries;
+			int brokerCount = brokers.Count();
+			var year = this.Year;
+
+			int row = 0;
+
+			var stylePlain = StylePlain(sl);
+			var styleMainHead = StyleH2(sl);
+
+			var styleHead = StyleHeadBase(sl);
+			styleHead.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
+			styleHead.Border.TopBorder.Color = Color.Black;
+			styleHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
+			styleHead.Border.BottomBorder.Color = Color.Black;
+
+			var styleRowHead = StyleRowHead(sl);
+
+			var styleMoney = StyleMoney(sl);
+
+			var colFirst = 'A';
+			var colFirstIdx = ColLetterToNumber(colFirst);
+			var colMax = 'N';
+			var colMaxIdx = ColLetterToNumber(colMax);
+
+			row = 1;
+			sl.SetCellValue($"A{row}", "Sales By Month");
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
+			SLD_ResizeRow(sl, row, 20);
+
+			row++;
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleHead);
+			sl.SetCellValue($"B{row}", "Account");
+			SLD_ResizeRow(sl, row, 18);
+
+			row++;
+			foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+
+				sl.SetCellValue($"A{row}", b.BrokerIdentity);
+				sl.SetCellValue($"B{row}", b.AccountIdentity + " (gains)");
+
+				sl.SetCellStyle($"A{row}", styleRowHead);
+				sl.SetCellStyle($"C{row}", $"N{row}", styleMoney);
+
+				row++;
+
+				sl.SetCellValue($"A{row}", b.BrokerIdentity);
+				sl.SetCellValue($"B{row}", b.AccountIdentity + " (proceeds)");
+
+				sl.SetCellStyle($"A{row}", styleRowHead);
+				sl.SetCellStyle($"C{row}", $"N{row}", styleMoney);
+
+				row++;
+
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+
+				sl.SetCellValue($"A{row}", b.BrokerIdentity);
+				sl.SetCellValue($"B{row}", b.AccountIdentity + " (cost)");
+
+				sl.SetCellStyle($"A{row}", styleRowHead);
+				sl.SetCellStyle($"C{row}", $"N{row}", styleMoney);
+
+				row++;
+			}
+
+			for (int m = 1; m <= 12; m++) {
+				row = 2;
+				var colMonthIdx = colFirstIdx + m + 1;
+				var colMonth = ColNumberToLetter(colMonthIdx);
+
+				var monthStart = new DateTime(year, m, 1);
+				var monthEnd = GetEndOfMonthByDate(monthStart);
+
+				Console.WriteLine($"\tTabulating sales totals for {monthStart.ToString("MMMM yyyy")} ==========");
+
+				sl.SetCellValue($"{colMonth}{row}", $"{monthStart.ToString("MMM yyyy")}");
+
+				row++;
+
+				foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
+					var accountIncome = b.GainLossRows.Where(x => x.DateClosed >= monthStart && x.DateClosed <= monthEnd).ToList();
+
+					var gainLoss = accountIncome.Sum(x => x.GainLoss);
+					var proceeds = accountIncome.Sum(x => x.Proceeds);
+					var costBasis = accountIncome.Sum(x => x.CostBasis);
+
+					sl.SetCellValue($"{colMonth}{row}", gainLoss);
+					sl.SetCellStyle($"{colMonth}{row}", styleMoney);
+					row++;
+
+					sl.SetCellValue($"{colMonth}{row}", proceeds);
+					sl.SetCellStyle($"{colMonth}{row}", styleMoney);
+					row++;
+
+					sl.SetCellValue($"{colMonth}{row}", costBasis);
+					sl.SetCellStyle($"{colMonth}{row}", styleMoney);
+					row++;
+				}
+
+				SLD_ResizeColumn(sl, colMonth, 16);
+			}
+
+			SLD_ResizeColumn(sl, "A", 16);
+			SLD_ResizeColumn(sl, "B", 18);
+
+			var accountColors = new Color[] { _color2, _color4, _color6, _color1, _color3, _color5 };
+			var colorGold = new string[] { "#ffa600", "#ed9200", "#da7f00", "#c76c01", "#b35a00", "#9f4900" };
+			var colorBlues = new string[] { "#04198f", "#382e96", "#53439c", "#6958a3", "#7e6ea9", "#9185af" };
+			var colorGreens = new string[] { "#3a9c2d", "#569e47", "#6ba05e", "#7ea274", "#90a38a" };
+			var colorReds = new string[] { "#ae2d19", "#c34931", "#d86349", "#eb7d61", "#ff967b" };
+
+			int lastRow = 2 + (brokerCount * 3);
+
+			var options = new SLCreateChartOptions() { RowsAsDataSeries = true };
+			var chart = sl.CreateChart(2, 2, lastRow, colMaxIdx, options);
+
+			chart.SetChartType(SLColumnChartType.ClusteredColumn);
+
+			for (int i = 1; i <= brokerCount; i++) {
+				var color = accountColors[i % accountColors.Length];
+
+				var ccBlue = colorBlues[i % colorBlues.Length];
+				//var ccGreen = colorGreens[i % colorGreens.Length];
+				//var ccRed = colorReds[i % colorReds.Length];
+				var ccGold = colorGold[i % colorGold.Length];
+
+				var blue = ColorTranslator.FromHtml(ccBlue);
+				//var green = ColorTranslator.FromHtml(ccGreen);
+				//var red = ColorTranslator.FromHtml(ccRed);
+				var gold = ColorTranslator.FromHtml(ccGold);
+
+				var colorLine = gold;
+
+				int ixGain = (i * 3) - 2;
+				var optGain = chart.GetDataSeriesOptions(ixGain);
+				optGain.Fill.SetSolidFill(colorLine, 0);
+				optGain.Line.SetSolidLine(colorLine, 0);
+				optGain.Line.Width = (decimal)2;
+				optGain.Marker.Fill.SetSolidFill(colorLine, 0);
+				optGain.Marker.Line.SetSolidLine(colorLine, 0);
+				optGain.Marker.Symbol = MarkerStyleValues.Diamond;
+				chart.SetDataSeriesOptions(ixGain, optGain);
+
+				int ixProc = (i * 3) - 1;
+				var optProc = chart.GetDataSeriesOptions(ixProc);
+				optProc.Fill.SetSolidFill(color, 0);
+				optProc.Line.SetSolidLine(color, 0);
+				chart.SetDataSeriesOptions(ixProc, optProc);
+
+				int ixCost = (i * 3) - 0;
+				var optCost = chart.GetDataSeriesOptions(ixCost);
+				optCost.Fill.SetSolidFill(blue, 0);
+				optCost.Line.SetSolidLine(blue, 0);
+				chart.SetDataSeriesOptions(ixCost, optCost);
+
+				chart.PlotDataSeriesAsSecondaryLineChart(ixGain, SLChartDataDisplayType.Normal, false);
+			}
+
+			chart.ShowChartLegend(LegendPositionValues.Right, false);
+
+			chart.SetChartPosition((lastRow + 2), 1, (lastRow + 25), 12);
+			sl.InsertChart(chart);
+
+			return sl;
+		}
+
 		protected SLDocument ReportSales(SLDocument sl) {
 			sl.SelectWorksheet(Sheet_Sales);
 			var brokers = this.BrokerSummaries;
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
-			var stylePlain = sl.CreateStyle();
-			stylePlain.Font = new SLFont();
-			stylePlain.Font.FontSize = _baseFont;
-			stylePlain.Font.Bold = false;
-			stylePlain.Font.FontColor = Color.Black;
+			var stylePlain = StylePlain(sl);
 
-			var styleShort = sl.CreateStyle();
-			styleShort.Font.Bold = true;
-			styleShort.Font.FontColor = Color.Black;
-			styleShort.Alignment.Horizontal = HorizontalAlignmentValues.Center;
-			styleShort.Fill.SetPattern(PatternValues.Solid, _colorShort, Color.Transparent);
+			var styleShort = StyleCenteredBackground(sl, _colorShort);
+			var styleLong = StyleCenteredBackground(sl, _colorLong);
 
-			var styleLong = sl.CreateStyle();
-			styleLong.Font.Bold = true;
-			styleLong.Font.FontColor = Color.Black;
-			styleLong.Alignment.Horizontal = HorizontalAlignmentValues.Center;
-			styleLong.Fill.SetPattern(PatternValues.Solid, _colorLong, Color.Transparent);
-
-			var styleHead = sl.CreateStyle();
-			styleHead.Alignment.Horizontal = HorizontalAlignmentValues.Center;
-			styleHead.Alignment.Vertical = VerticalAlignmentValues.Bottom;
-			styleHead.Font.Bold = true;
-			styleHead.Font.FontSize = _baseFont;
-			styleHead.Fill.SetPattern(PatternValues.Solid, _color1, Color.Transparent);
+			var styleHead = StyleHeadBase(sl);
 			styleHead.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
 			styleHead.Border.TopBorder.Color = Color.Black;
 			styleHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
 			styleHead.Border.BottomBorder.Color = Color.Black;
 
-			var styleMainHead = sl.CreateStyle();
-			styleMainHead.Font.Bold = true;
-			styleMainHead.Font.FontColor = _color6;
-			styleMainHead.Font.FontSize = _baseFont + 4;
-			styleMainHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Medium;
-			styleMainHead.Border.BottomBorder.Color = _color6;
+			var styleMainHead = StyleH2(sl);
 
-			var styleRowHead = sl.CreateStyle();
-			styleRowHead.Alignment.Horizontal = HorizontalAlignmentValues.Right;
-			styleRowHead.Font.Bold = true;
-			styleRowHead.Font.FontColor = Color.Black;
-			styleRowHead.Font.FontSize = _baseFont;
+			var styleRowHead = StyleRowHead(sl);
 
-			var styleMoney = sl.CreateStyle();
-			styleMoney.FormatCode = "$#,##0.00;[Red]($#,##0.00)";
+			var styleMoney = StyleMoney(sl);
 
-			var styleDate = sl.CreateStyle();
-			styleDate.FormatCode = "mm/dd/yyyy";
+			var styleDate = StyleDate(sl);
 
 			var colFirst = 'A';
 			var colFirstIdx = ColLetterToNumber(colFirst);
@@ -163,7 +698,7 @@ namespace Carrotware.IncomeParser.Helpers {
 				}
 				var tickers = b.GainLossRows.Select(x => x.SecuritySymbol.ToUpperInvariant()).OrderBy(x => x).Distinct().ToList();
 
-				Console.WriteLine($"\tCreating sale history {b.BrokerIdentity} ==========");
+				Console.WriteLine($"\tCreating sale history {b.AccountIdentity} ==========");
 
 				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
 				sl.SetCellValue($"{colFirst}{row}", $"{b.BrokerIdentity} : {b.AccountIdentity}");
@@ -258,11 +793,7 @@ namespace Carrotware.IncomeParser.Helpers {
 
 			var taxRates = ParserWorkerBee.Configuration.GetSection("TaxRatesPercent").Get<Dictionary<string, object>>();
 
-			var stylePlain = sl.CreateStyle();
-			stylePlain.Font = new SLFont();
-			stylePlain.Font.FontSize = _baseFont;
-			stylePlain.Font.Bold = false;
-			stylePlain.Font.FontColor = Color.Black;
+			var stylePlain = StylePlain(sl);
 			stylePlain.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
 			stylePlain.Border.TopBorder.Color = Color.Black;
 			stylePlain.Border.BottomBorder.BorderStyle = BorderStyleValues.Thin;
@@ -272,39 +803,20 @@ namespace Carrotware.IncomeParser.Helpers {
 			stylePlain.Border.RightBorder.BorderStyle = BorderStyleValues.Thin;
 			stylePlain.Border.RightBorder.Color = Color.Black;
 
-			var styleHead = sl.CreateStyle();
-			styleHead.Alignment.Horizontal = HorizontalAlignmentValues.Center;
-			styleHead.Alignment.Vertical = VerticalAlignmentValues.Bottom;
-			styleHead.Font.Bold = true;
+			var styleHead = StyleHeadBase(sl);
 			styleHead.Border.TopBorder.Color = Color.Black;
 			styleHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
-			styleHead.Font.FontSize = _baseFont;
-			styleHead.Fill.SetPattern(PatternValues.Solid, _color1, Color.Transparent);
 
-			var styleRowHead = sl.CreateStyle();
-			styleRowHead.Alignment.Horizontal = HorizontalAlignmentValues.Right;
-			styleRowHead.Font.Bold = true;
-			styleRowHead.Font.FontColor = Color.Black;
-			styleRowHead.Font.FontSize = _baseFont;
+			var styleRowHead = StyleRowHead(sl);
 
-			var styleMoney = sl.CreateStyle();
-			styleMoney.Font.FontSize = _baseFont;
-			styleMoney.FormatCode = "$#,##0.00;[Red]($#,##0.00)";
+			var styleDate = StyleDate(sl);
 
-			var styleDate = sl.CreateStyle();
-			styleDate.Font.FontSize = _baseFont;
-			styleDate.FormatCode = "mm/dd/yyyy";
+			var styleMoney = StyleMoney(sl);
 
-			var styleMoneyAttention = sl.CreateStyle();
-			styleMoneyAttention.Font = new SLFont();
-			styleMoneyAttention.Font.FontSize = _baseFont;
+			var styleMoneyAttention = StyleMoney(sl);
 			styleMoneyAttention.Font.Italic = true;
-			styleMoneyAttention.FormatCode = "$#,##0.00;[Red]($#,##0.00)";
 
-			var stylePerc = sl.CreateStyle();
-			stylePerc.Font = new SLFont();
-			stylePerc.Font.FontSize = _baseFont;
-			stylePerc.FormatCode = "0.00%";
+			var stylePerc = StylePercent(sl);
 
 			var colLastBrIdx = brokerCount + 1;
 			var colSubTotIdx = brokerCount + 2;
@@ -515,35 +1027,20 @@ namespace Carrotware.IncomeParser.Helpers {
 			sl.SelectWorksheet(Sheet_Washes);
 			var brokers = this.BrokerSummaries;
 
-			var stylePlain = sl.CreateStyle();
-			stylePlain.Font = new SLFont();
-			stylePlain.Font.FontSize = _baseFont;
-			stylePlain.Font.Bold = false;
-			stylePlain.Font.FontColor = Color.Black;
+			var stylePlain = StylePlain(sl);
 
-			var styleHead = sl.CreateStyle();
-			styleHead.Alignment.Horizontal = HorizontalAlignmentValues.Center;
-			styleHead.Alignment.Vertical = VerticalAlignmentValues.Bottom;
-			styleHead.Font.Bold = true;
-			styleHead.Font.FontSize = _baseFont;
-			styleHead.Fill.SetPattern(PatternValues.Solid, _color1, Color.Transparent);
+			var styleHead = StyleHeadBase(sl);
 			styleHead.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
 			styleHead.Border.TopBorder.Color = Color.Black;
 			styleHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
 			styleHead.Border.BottomBorder.Color = Color.Black;
 
-			var styleMainHead = sl.CreateStyle();
-			styleMainHead.Font.Bold = true;
-			styleMainHead.Font.FontColor = _color6;
-			styleMainHead.Font.FontSize = _baseFont + 4;
-			styleMainHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Medium;
-			styleMainHead.Border.BottomBorder.Color = _color6;
+			var styleMainHead = StyleH2(sl);
 
-			var styleMoney = sl.CreateStyle();
-			styleMoney.FormatCode = "$#,##0.00;[Red]($#,##0.00)";
+			var styleMoney = StyleMoney(sl);
+			var stylePercent = StylePercent(sl);
 
-			var styleDate = sl.CreateStyle();
-			styleDate.FormatCode = "mm/dd/yyyy";
+			var styleDate = StyleDate(sl);
 
 			var colFirst = 'A';
 			var colFirstIdx = ColLetterToNumber(colFirst);
@@ -593,17 +1090,24 @@ namespace Carrotware.IncomeParser.Helpers {
 						sl.SetCellValue($"B{row}", match.GainLossRow.DateOpened);
 						sl.SetCellStyle($"B{row}", styleDate);
 
-						sl.SetCellValue($"C{row}", match.GainLossRow.GainLossType.ToString());
-						sl.SetCellValue($"D{row}", match.GainLossRow.Quantity.ToString());
+						sl.SetCellValue($"C{row}", match.GainLossRow.DateClosed);
+						sl.SetCellStyle($"C{row}", styleDate);
 
-						sl.SetCellValue($"E{row}", match.GainLossRow.Proceeds);
-						sl.SetCellStyle($"E{row}", styleMoney);
+						sl.SetCellValue($"D{row}", match.GainLossRow.GainLossType.ToString());
 
-						sl.SetCellValue($"F{row}", match.GainLossRow.DateClosed);
-						sl.SetCellStyle($"F{row}", styleDate);
+						sl.SetCellValue($"E{row}", match.GainLossRow.Quantity.ToString());
 
-						sl.SetCellValue($"G{row}", match.GainLossRow.GainLoss);
+						sl.SetCellValue($"F{row}", match.GainLossRow.GainLoss);
+						sl.SetCellStyle($"F{row}", styleMoney);
+
+						sl.SetCellValue($"G{row}", lossAllowed);
 						sl.SetCellStyle($"G{row}", styleMoney);
+
+						sl.SetCellValue($"H{row}", fracAllowed);
+						sl.SetCellStyle($"H{row}", stylePercent);
+
+						sl.SetCellValue($"I{row}", adjustment);
+						sl.SetCellStyle($"I{row}", styleMoney);
 
 						sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleHead);
 						SLD_ResizeRow(sl, row, 18);
@@ -611,9 +1115,11 @@ namespace Carrotware.IncomeParser.Helpers {
 						SLD_ResizeColumn(sl, "B", 18);
 						SLD_ResizeColumn(sl, "C", 18);
 						SLD_ResizeColumn(sl, "D", 18);
-						SLD_ResizeColumn(sl, "E", 18);
+						SLD_ResizeColumn(sl, "E", 12);
 						SLD_ResizeColumn(sl, "F", 18);
-						SLD_ResizeColumn(sl, "G", 18);
+						SLD_ResizeColumn(sl, "G", 12);
+						SLD_ResizeColumn(sl, "H", 12);
+						SLD_ResizeColumn(sl, "I", 12);
 
 						sl.SetCellStyle(row, colFirstIdx, (row + washes.Count + 5), colMaxIdx, stylePlain);
 
@@ -664,23 +1170,12 @@ namespace Carrotware.IncomeParser.Helpers {
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
-			var stylePlain = sl.CreateStyle();
-			stylePlain.Font = new SLFont();
-			stylePlain.Font.FontSize = _baseFont;
-			stylePlain.Font.Bold = false;
-			stylePlain.Font.FontColor = Color.Black;
+			var stylePlain = StylePlain(sl);
 
-			var stylePlainAttention = sl.CreateStyle();
-			stylePlainAttention.Font = new SLFont();
-			stylePlainAttention.Font.FontSize = _baseFont;
+			var stylePlainAttention = StylePlain(sl);
 			stylePlainAttention.Font.Italic = true;
-			stylePlain.Font.FontColor = Color.Black;
 
-			var styleRowHead = sl.CreateStyle();
-			styleRowHead.Alignment.Horizontal = HorizontalAlignmentValues.Right;
-			styleRowHead.Font.Bold = true;
-			styleRowHead.Font.FontColor = Color.Black;
-			styleRowHead.Font.FontSize = _baseFont;
+			var styleRowHead = StyleRowHead(sl);
 
 			var styleSubTot = sl.CreateStyle();
 			styleSubTot.Alignment.Horizontal = HorizontalAlignmentValues.Right;
@@ -692,42 +1187,18 @@ namespace Carrotware.IncomeParser.Helpers {
 			styleSubTot.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
 			styleSubTot.Border.BottomBorder.Color = Color.Black;
 
-			var styleQuarterHead = sl.CreateStyle();
-			styleQuarterHead.Alignment.Horizontal = HorizontalAlignmentValues.Center;
-			styleQuarterHead.Alignment.Vertical = VerticalAlignmentValues.Bottom;
-			styleQuarterHead.Font.Bold = true;
-			styleQuarterHead.Font.FontSize = _baseFont;
-			styleQuarterHead.Fill.SetPattern(PatternValues.Solid, _color1, Color.Transparent);
+			var styleQuarterHead = StyleCenteredBackground(sl, _color1);
 
-			var styleYearHead = sl.CreateStyle();
-			styleYearHead.Alignment.Horizontal = HorizontalAlignmentValues.Center;
-			styleYearHead.Alignment.Vertical = VerticalAlignmentValues.Bottom;
-			styleYearHead.Font.Bold = true;
-			styleYearHead.Font.FontSize = _baseFont;
-			styleYearHead.Fill.SetPattern(PatternValues.Solid, _color3, Color.Transparent);
+			var styleYearHead = StyleCenteredBackground(sl, _color3);
 
-			var styleMainHead = sl.CreateStyle();
-			styleMainHead.Font.Bold = true;
-			styleMainHead.Font.FontColor = _color6;
-			styleMainHead.Font.FontSize = _baseFont + 4;
-			styleMainHead.Border.BottomBorder.BorderStyle = BorderStyleValues.Medium;
-			styleMainHead.Border.BottomBorder.Color = _color6;
+			var styleMainHead = StyleH2(sl);
 
-			var styleMoney = sl.CreateStyle();
-			styleMoney.Font = new SLFont();
-			styleMoney.Font.FontSize = _baseFont;
-			styleMoney.FormatCode = "$#,##0.00;[Red]($#,##0.00)";
+			var styleDate = StyleDate(sl);
 
-			var styleMoneyAttention = sl.CreateStyle();
-			styleMoneyAttention.Font = new SLFont();
-			styleMoneyAttention.Font.FontSize = _baseFont;
+			var styleMoney = StyleMoney(sl);
+
+			var styleMoneyAttention = StyleMoney(sl);
 			styleMoneyAttention.Font.Italic = true;
-			styleMoneyAttention.FormatCode = "$#,##0.00;[Red]($#,##0.00)";
-
-			var styleDate = sl.CreateStyle();
-			styleDate.Font = new SLFont();
-			styleDate.Font.FontSize = _baseFont;
-			styleDate.FormatCode = "mm/dd/yyyy";
 
 			var quarter = 1;
 			var subhead = _starterRowQuarters;

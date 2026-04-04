@@ -17,7 +17,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 		public List<TransactionRow> TransactionRows { get; set; }
 
 		protected string GetTicker(RowHelper rh) {
-			var colName = new string[4] { "Ticker", "Security", "Symbol", "Symbol/ CUSIP" };
+			var colName = new string[] { "Ticker", "Security", "Symbol", "Symbol/CUSIP #", "Symbol/ CUSIP" };
 
 			foreach (var c in colName) {
 				if (rh.Exists(c)) {

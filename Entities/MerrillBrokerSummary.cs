@@ -20,38 +20,50 @@ namespace Carrotware.IncomeParser.Entities {
 		public override void LoadData(List<IFileCoreData> documents) {
 			base.LoadData(documents);
 
+			// Merrill uses gibberish symbols...
+			// must patch, cross check with transaction logs
 			if (this.TransactionRows.Any() && this.GainLossRows.Any()) {
 				foreach (var g in this.GainLossRows.OrderBy(x => x.SecurityDescription)) {
 					if (g.SecuritySymbol.IsAlphaNumeric() && g.SecuritySymbol.HasDigits()) {
 						var securityRows = this.TransactionRows
-											.Where(x => x.ActionText.ToUpperInvariant().Contains(g.SecurityDescription.ToUpperInvariant()));
+											.Where(x => x.ActionText.ToUpperInvariant()
+											.Contains(g.SecurityDescription.ToUpperInvariant()));
 
 						var tickerOld = g.SecuritySymbol.ToUpperInvariant();
 						var tickerNew = tickerOld;
+
 						var dateClosed = g.DateClosed;
 						var dateOpened = g.DateOpened;
 
 						var tickerSale = securityRows.Where(x => x.TransactionType == TransactionType.Sell)
-												.Where(x => (x.SettlementDate >= dateClosed.AddDays(-3)
-																		&& x.SettlementDate <= dateClosed.AddDays(3))
-														|| (x.TransactionDate >= dateClosed.AddDays(-3)
-																	&& x.TransactionDate <= dateClosed.AddDays(3))
+												.Where(x => (x.SettlementDate >= dateClosed.AddDays(-4)
+																		&& x.SettlementDate <= dateClosed.AddDays(4))
+														|| (x.TransactionDate >= dateClosed.AddDays(-4)
+																	&& x.TransactionDate <= dateClosed.AddDays(4))
 												).FirstOrDefault();
 
 						if (tickerSale != null) {
 							tickerNew = tickerSale.SecuritySymbol.ToUpperInvariant();
 						} else {
-							var tickerOpen = securityRows.Where(x => x.TransactionType == TransactionType.Buy
-													|| x.TransactionType == TransactionType.Dividend
-													|| x.TransactionType == TransactionType.Interest)
+							var tickerOpen = securityRows.Where(x => x.TransactionType == TransactionType.Buy)
 										.Where(x => x.TransactionDate >= dateOpened.AddDays(-30)
 												&& x.TransactionDate <= dateOpened.AddDays(30));
 
-							var tickerAction = tickerOpen.Where(x => (x.SettlementDate >= dateOpened.AddDays(-3)
-																		&& x.SettlementDate <= dateOpened.AddDays(3))
-													|| (x.TransactionDate >= dateOpened.AddDays(-3)
-																&& x.TransactionDate <= dateOpened.AddDays(3))
+							var tickerAction = tickerOpen.Where(x => (x.SettlementDate >= dateOpened.AddDays(-4)
+																		&& x.SettlementDate <= dateOpened.AddDays(4))
+													|| (x.TransactionDate >= dateOpened.AddDays(-4)
+																&& x.TransactionDate <= dateOpened.AddDays(4))
 												).FirstOrDefault();
+
+							if (tickerAction == null) {
+								tickerOpen = securityRows.Where(x => x.TransactionType == TransactionType.Buy
+														|| x.TransactionType == TransactionType.Dividend
+														|| x.TransactionType == TransactionType.Interest)
+												.Where(x => x.TransactionDate >= dateClosed.AddDays(-100)
+														&& x.TransactionDate <= dateClosed.AddDays(100));
+
+								tickerAction = tickerOpen.FirstOrDefault();
+							}
 
 							if (tickerAction != null) {
 								tickerNew = tickerAction.SecuritySymbol.ToUpperInvariant();
@@ -74,6 +86,7 @@ namespace Carrotware.IncomeParser.Entities {
 			if (hasMatch) {
 				if (rows[0].ToLowerInvariant().Contains("acquisition date")
 					&& rows[0].ToLowerInvariant().Contains("liquidation date")
+					&& rows[0].ToLowerInvariant().Contains("security description")
 					&& rows[0].ToLowerInvariant().Contains("acquisition price")
 					&& rows[0].ToLowerInvariant().Contains("liquidation price")) {
 					return new MerrillGainLoss(file, rows);

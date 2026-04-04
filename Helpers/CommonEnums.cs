@@ -39,11 +39,11 @@ namespace Carrotware.IncomeParser.Helpers {
 	public enum TransactionType {
 		Unknown,
 		Journal,
-		Interest,
 		Buy,
 		Sell,
+		Dividend,
+		Interest,
 		DistributionLT,
 		DistributionST,
-		Dividend,
 	}
 }

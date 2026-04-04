@@ -171,13 +171,13 @@ namespace Carrotware.IncomeParser.Interfaces {
 			ConsoleWriter("-----------------------------");
 			Console.ResetColor();
 
-			var dividends = broker.TransactionRows.Where(x => x.TransactionType == TransactionType.Dividend).Sum(x => x.TransactionAmount);
-			var interest = broker.TransactionRows.Where(x => x.TransactionType == TransactionType.Interest).Sum(x => x.TransactionAmount);
+			var dividends = broker.TransactionRows.Where(x => x.TransactionDate.Year == broker.Year && x.TransactionType == TransactionType.Dividend).Sum(x => x.TransactionAmount);
+			var interest = broker.TransactionRows.Where(x => x.TransactionDate.Year == broker.Year && x.TransactionType == TransactionType.Interest).Sum(x => x.TransactionAmount);
 
-			var ltgT = broker.TransactionRows.Where(x => x.TransactionType == TransactionType.DistributionLT).Sum(x => x.TransactionAmount);
-			var stgT = broker.TransactionRows.Where(x => x.TransactionType == TransactionType.DistributionST).Sum(x => x.TransactionAmount);
-			var ltgGL = broker.GainLossRows.Where(x => x.GainLossType == GainLossType.Long).Sum(x => x.GainLoss);
-			var stgGL = broker.GainLossRows.Where(x => x.GainLossType == GainLossType.Short).Sum(x => x.GainLoss);
+			var ltgT = broker.TransactionRows.Where(x => x.TransactionDate.Year == broker.Year && x.TransactionType == TransactionType.DistributionLT).Sum(x => x.TransactionAmount);
+			var stgT = broker.TransactionRows.Where(x => x.TransactionDate.Year == broker.Year && x.TransactionType == TransactionType.DistributionST).Sum(x => x.TransactionAmount);
+			var ltgGL = broker.GainLossRows.Where(x => x.DateClosed.Year == broker.Year && x.GainLossType == GainLossType.Long).Sum(x => x.GainLoss);
+			var stgGL = broker.GainLossRows.Where(x => x.DateClosed.Year == broker.Year && x.GainLossType == GainLossType.Short).Sum(x => x.GainLoss);
 
 			var ltg = ltgT + ltgGL;
 			var stg = stgT + stgGL;
@@ -273,6 +273,15 @@ namespace Carrotware.IncomeParser.Interfaces {
 					var quarterInt = new QuarterlyTotalRow(IncomeType.Interest, q, interestQ);
 					var quarterLong = new QuarterlyTotalRow(IncomeType.LongTermCG, q, ltgQ);
 					var quarterShort = new QuarterlyTotalRow(IncomeType.ShortTermGG, q, stgQ);
+
+					quarter.IncomeDetails = transactions.Where(x => x.TransactionType == TransactionType.Interest
+											|| x.TransactionType == TransactionType.Dividend
+											|| x.TransactionType == TransactionType.DistributionST
+											|| x.TransactionType == TransactionType.DistributionLT)
+									.Select(x => new TransactionDetail(broker, x)).ToList();
+
+					quarter.SaleDetails = transactions.Where(x => x.TransactionType == TransactionType.Sell)
+									.Select(x => new TransactionDetail(broker, x)).ToList();
 
 					quarter.QuarterlyTotalRows.Add(quarterDiv);
 					quarter.QuarterlyTotalRows.Add(quarterInt);

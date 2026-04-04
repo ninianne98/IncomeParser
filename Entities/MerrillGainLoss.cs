@@ -1,6 +1,5 @@
 ﻿using Carrotware.IncomeParser.Helpers;
 using Carrotware.IncomeParser.Interfaces;
-using Microsoft.VisualBasic.FileIO;
 
 namespace Carrotware.IncomeParser.Entities {
 
@@ -22,56 +21,45 @@ namespace Carrotware.IncomeParser.Entities {
 		}
 
 		public override void ParseFile() {
-			int r = 0;
 			this.GainLossRows = new List<GainLossRow>();
 
-			bool firstLine = true;  // because first line is a header row
 			var rh = new RowHelper();
 
-			using (var parser = new TextFieldParser(this.FileInfo.FullName)) {
-				parser.HasFieldsEnclosedInQuotes = true;
-				parser.TextFieldType = FieldType.Delimited;
-				parser.SetDelimiters(",");
+			using (var parser = rh.LoadFile(this.FileInfo.FullName)) {
+				rh.ReadFile();
+				rh.SetHeaderRow(0);
 
-				while (!parser.EndOfData) {
-					var fields = parser.ReadFields();
-					rh.LoadRow(fields);
+				for (int r = 1; r <= rh.FileRows.Count; r++) {
+					var fields = rh.LoadRow(r);
 
 					if (fields != null) {
-						if (firstLine) {
-							rh = new RowHelper(fields);
-							firstLine = false;
-						} else {
-							if (fields.Length > 10) {
-								if (r < 2) {
-									this.AccountIdentity = rh.ReadCell("Account Registration")
-										+ " " + rh.ReadCell("Account #");
-								}
-
-								var row = new GainLossRow(this.Rows[r]);
-								// Merrill uses gibberish symbols...
-								// must patch later
-								row.SecuritySymbol = GetTicker(rh);
-
-								row.DateOpened = rh.ReadCell("Acquisition Date").StringToDate() ?? DateTime.Now;
-								row.DateClosed = rh.ReadCell("Liquidation Date").StringToDate() ?? DateTime.Now;
-
-								row.SecurityDescription = rh.ReadEmptyCell("Security Description");
-								row.GainLossType = rh.ReadEmptyCell("Short/Long").ToLowerInvariant().Contains("short") ? GainLossType.Short : GainLossType.Long;
-
-								row.Quantity = rh.ReadCell("Quantity").StringToDecimal() ?? 0;
-								row.UnitCost = rh.ReadCell("Acquisition Price ($)").StringToDecimal() ?? 0;
-								row.UnitProceeds = rh.ReadCell("Liquidation Price ($)").StringToDecimal() ?? 0;
-
-								row.Proceeds = rh.ReadCell("Liquidation Amount ($)").StringToDecimal() ?? 0;
-								row.CostBasis = rh.ReadCell("Acquisition Cost ($)").StringToDecimal() ?? 0;
-
-								this.GainLossRows.Add(row);
+						if (fields.Length > 10) {
+							if (r <= 2) {
+								this.AccountIdentity = rh.ReadCell("Account Registration")
+									+ " " + rh.ReadCell("Account #");
 							}
+
+							var row = new GainLossRow(this.Rows[r]);
+							// Merrill uses gibberish symbols...
+							// must patch later, cross check with transaction logs
+							row.SecuritySymbol = GetTicker(rh);
+
+							row.DateOpened = rh.ReadCell("Acquisition Date").StringToDate() ?? DateTime.Now;
+							row.DateClosed = rh.ReadCell("Liquidation Date").StringToDate() ?? DateTime.Now;
+
+							row.SecurityDescription = rh.ReadEmptyCell("Security Description");
+							row.GainLossType = rh.ReadEmptyCell("Short/Long").ToLowerInvariant().Contains("short") ? GainLossType.Short : GainLossType.Long;
+
+							row.Quantity = rh.ReadCell("Quantity").StringToDecimal() ?? 0;
+							row.UnitCost = rh.ReadCell("Acquisition Price ($)").StringToDecimal() ?? 0;
+							row.UnitProceeds = rh.ReadCell("Liquidation Price ($)").StringToDecimal() ?? 0;
+
+							row.Proceeds = rh.ReadCell("Liquidation Amount ($)").StringToDecimal() ?? 0;
+							row.CostBasis = rh.ReadCell("Acquisition Cost ($)").StringToDecimal() ?? 0;
+
+							this.GainLossRows.Add(row);
 						}
 					}
-
-					r++;
 				}
 			}
 		}

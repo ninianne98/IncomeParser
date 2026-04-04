@@ -11,9 +11,23 @@ namespace Carrotware.IncomeParser.Entities {
 			this.RowText = rowText;
 		}
 
+		public TransactionRow(string[] values) {
+			SetRowText(values);
+		}
+
 		public TransactionRow(string? rowText, TransactionType tt) {
 			this.RowText = rowText;
 			this.TransactionType = tt;
+		}
+
+		public TransactionRow(string[] values, TransactionType tt) {
+			SetRowText(values);
+			this.TransactionType = tt;
+		}
+
+		public void SetRowText(string[] values) {
+			// set from fields parsed from CSV reader
+			this.RowText = string.Join("  :  ", values);
 		}
 
 		public string? RowText { get; set; } = string.Empty;
