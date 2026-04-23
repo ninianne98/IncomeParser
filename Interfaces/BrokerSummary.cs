@@ -1,6 +1,5 @@
 ﻿using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Helpers;
-using System.Text;
 
 namespace Carrotware.IncomeParser.Interfaces {
 
@@ -110,7 +109,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 							   .FirstOrDefault();
 				}
 
-				if (this.Year < 1970) {
+				if (this.Year <= 1970) {
 					this.Year = DateTime.Now.Year;
 				}
 			}

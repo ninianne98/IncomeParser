@@ -17,11 +17,21 @@ namespace Carrotware.IncomeParser.Interfaces {
 		public List<GainLossRow> GainLossRows { get; set; }
 
 		protected string GetTicker(RowHelper rh) {
-			var colName = new string[4] { "Ticker", "Security", "Symbol", "Symbol/ CUSIP" };
+			var colName = new string[] { "Ticker", "Security", "Symbol", "Symbol/CUSIP #", "Symbol/ CUSIP", "Symbol(CUSIP)" };
 
-			foreach (var c in colName) {
-				if (rh.Exists(c)) {
-					return (rh.ReadCell(c) ?? "N/A").ToUpperInvariant();
+			foreach (var cn in colName) {
+				if (rh.Exists(cn)) {
+					var cellvalue = rh.ReadCell(cn);
+
+					if (string.IsNullOrEmpty(cellvalue) == false
+							&& cn.ToLowerInvariant() == "symbol(cusip)") {
+						var symb = cellvalue.Split('(');
+						if (symb.Length > 0) {
+							cellvalue = symb[0];
+						}
+					}
+
+					return (cellvalue ?? "N/A").ToUpperInvariant();
 				}
 			}
 

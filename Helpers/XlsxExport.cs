@@ -2,7 +2,6 @@
 using Carrotware.IncomeParser.Interfaces;
 using DocumentFormat.OpenXml.Drawing.Charts;
 using DocumentFormat.OpenXml.Spreadsheet;
-using Microsoft.Extensions.Configuration;
 using SpreadsheetLight;
 using SpreadsheetLight.Charts;
 using System.Data;
@@ -123,7 +122,7 @@ namespace Carrotware.IncomeParser.Helpers {
 
 		public void GenerateReport() {
 			var year = this.BrokerSummaries.Max(x => x.Year);
-			if (year < 1970) {
+			if (year <= 1970) {
 				year = DateTime.Now.Year;
 			}
 			this.Year = year;
@@ -684,7 +683,7 @@ namespace Carrotware.IncomeParser.Helpers {
 
 			var colFirst = 'A';
 			var colFirstIdx = ColLetterToNumber(colFirst);
-			var colMax = 'I';
+			var colMax = 'J';
 			var colMaxIdx = ColLetterToNumber(colMax);
 
 			SLD_ResizeColumn(sl, "A", 14);
@@ -729,9 +728,10 @@ namespace Carrotware.IncomeParser.Helpers {
 					sl.SetCellValue($"D{row}", "Date Closed");
 					sl.SetCellValue($"E{row}", "Quantity");
 					sl.SetCellValue($"F{row}", "Unit Cost");
-					sl.SetCellValue($"G{row}", "Proceeds");
-					sl.SetCellValue($"H{row}", "Gain/Loss");
-					sl.SetCellValue($"I{row}", "Term");
+					sl.SetCellValue($"G{row}", "Unit Proceeds");
+					sl.SetCellValue($"H{row}", "Proceeds");
+					sl.SetCellValue($"I{row}", "Gain/Loss");
+					sl.SetCellValue($"J{row}", "Term");
 
 					sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleHead);
 
@@ -750,15 +750,18 @@ namespace Carrotware.IncomeParser.Helpers {
 						sl.SetCellValue($"F{row}", g.UnitCost);
 						sl.SetCellStyle($"F{row}", styleMoney);
 
-						sl.SetCellValue($"G{row}", g.Proceeds);
+						sl.SetCellValue($"G{row}", g.UnitProceeds);
 						sl.SetCellStyle($"G{row}", styleMoney);
 
-						sl.SetCellValue($"H{row}", g.GainLoss);
+						sl.SetCellValue($"H{row}", g.Proceeds);
 						sl.SetCellStyle($"H{row}", styleMoney);
 
-						sl.SetCellValue($"I{row}", g.GainLossType.GetDescription());
+						sl.SetCellValue($"I{row}", g.GainLoss);
+						sl.SetCellStyle($"I{row}", styleMoney);
+
+						sl.SetCellValue($"J{row}", g.GainLossType.GetDescription());
 						var stLongShort = g.GainLossType == GainLossType.Long ? styleLong : styleShort;
-						sl.SetCellStyle($"I{row}", stLongShort);
+						sl.SetCellStyle($"J{row}", stLongShort);
 
 						row++;
 					}
@@ -770,6 +773,7 @@ namespace Carrotware.IncomeParser.Helpers {
 					SLD_ResizeColumn(sl, "G", 18);
 					SLD_ResizeColumn(sl, "H", 18);
 					SLD_ResizeColumn(sl, "I", 18);
+					SLD_ResizeColumn(sl, "J", 18);
 
 					row++;
 				}
@@ -784,14 +788,13 @@ namespace Carrotware.IncomeParser.Helpers {
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
-			var tax = new TaxDataCollector();
-			var taxYearData = tax.Fetch(year);
+			var taxYearData = TaxYearData.Load(year);
 
-			if (taxYearData == null || taxYearData.Quarters.Count == 0) {
+			if (taxYearData == null
+						|| taxYearData.Quarters.Count == 0
+						|| taxYearData.TaxRates.Count == 0) {
 				return sl;
 			}
-
-			var taxRates = ParserWorkerBee.Configuration.GetSection("TaxRatesPercent").Get<Dictionary<string, object>>();
 
 			var stylePlain = StylePlain(sl);
 			stylePlain.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
@@ -852,18 +855,18 @@ namespace Carrotware.IncomeParser.Helpers {
 			sl.SetCellStyle((subhead + 1), colTaxRateLblIdx, (subhead + 4), colTaxValue1Idx, stylePlain);
 			sl.SetCellValue($"{colTaxRateLbl}{subhead}", "Rates");
 
-			if (taxRates != null) {
-				double rt = 0.30;
+			if (taxYearData.TaxRates.Any()) {
+				double rt = 0.25;
 				int taxRateRow = _starterRowQuarters + 1;
 
-				foreach (var taxCat in _incomeTypes) {
-					var key = taxCat.ToString();
-					var keyDesc = taxCat.GetDescription();
-					rt = 0.30;
+				foreach (var incType in _incomeTypes) {
+					var keyDesc = incType.GetDescription();
+					rt = 0.25;
 
-					if (taxRates.ContainsKey(key)) {
-						var rate = taxRates[key].ToString() ?? "20";
-						var rateNbr = double.Parse(rate);
+					var taxRate = taxYearData.TaxRates.Where(x => x.IncomeType == incType).FirstOrDefault();
+
+					if (taxRate != null) {
+						var rateNbr = taxRate.Percentage ?? 20;
 						rt = (rateNbr > 1.00) ? (rateNbr / 100.00) : rateNbr;
 					}
 
@@ -1256,7 +1259,8 @@ namespace Carrotware.IncomeParser.Helpers {
 				var colSumIdx = colB;
 
 				foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
-					sl.SetCellValue(subhead, colSumIdx, b.BrokerIdentity.ToString());
+					sl.SetCellValue((subhead - 1), colSumIdx, b.BrokerIdentity);
+					sl.SetCellValue(subhead, colSumIdx, b.AccountIdentity);
 					var totals = b.QuarterRows.Where(x => x.Quarter == quarter).FirstOrDefault();
 
 					var colSum = ColNumberToLetter(colSumIdx);

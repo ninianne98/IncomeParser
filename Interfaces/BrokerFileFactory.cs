@@ -107,7 +107,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 			}
 
 			var year = brokers.Max(x => x.Year);
-			if (year < 1970) {
+			if (year <= 1970) {
 				year = DateTime.Now.Year;
 			}
 
@@ -124,7 +124,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 		public void PrintOutput(List<IBrokerSummary> brokers) {
 			var year = brokers.Max(x => x.Year);
-			if (year < 1970) {
+			if (year <= 1970) {
 				year = DateTime.Now.Year;
 			}
 			this.Year = year;
@@ -162,7 +162,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 			sb.AppendLine($"Generated: {ParserWorkerBee.AppDateTime}".QuoteForCSV());
 			SaveCSV(sb);
 
-			Console.ForegroundColor = ConsoleColor.DarkGreen;
+			Console.ForegroundColor = ConsoleColor.DarkCyan;
 			ConsoleWriter();
 			ConsoleWriter($"Account: {broker.AccountIdentity} - {broker.BrokerIdentity}");
 			ConsoleWriter("-----------------------------");

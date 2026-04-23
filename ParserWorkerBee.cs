@@ -5,7 +5,7 @@ using Microsoft.Extensions.Configuration;
 
 public class ParserWorkerBee {
 	protected static IConfiguration _configuration;
-	protected static DateTime _date = DateTime.Now;
+	protected static DateTime _date = DateTime.MinValue;
 
 	public static IConfiguration Configuration {
 		get {
@@ -26,6 +26,10 @@ public class ParserWorkerBee {
 
 	public static DateTime AppDateTime {
 		get {
+			if (_date == DateTime.MinValue) {
+				_date = DateTime.Now;
+			}
+
 			return _date;
 		}
 	}
@@ -62,8 +66,6 @@ public class ParserWorkerBee {
 
 	public ParserWorkerBee() {
 		LoadConfig();
-
-		_date = DateTime.Now;
 	}
 
 	public void RunParser() {
@@ -110,8 +112,8 @@ public class ParserWorkerBee {
 		Thread.Sleep(500);
 
 		Program.PrintDisclaimer();
-		var tax = new TaxDataCollector();
-		tax.Init(brokers);
+		var tax = new TaxDataCollector(brokers);
+		tax.Run();
 
 		var report = new XlsxExport(brokers);
 		report.GenerateReport();

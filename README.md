@@ -2,13 +2,23 @@
 
 Income Parser is a C# .NET 8.0 tool designed to aggregate brokerage transaction data, identify potential wash sales across multiple accounts, and generate detailed financial reports for tax research and discovery.
 
-## Getting Started
+## Use Cases
 
-*   [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+*   **Multi-Broker Aggregation**: Consolidate trade data and income (dividends, interest) from various brokerage firms into a single unified view.
+*   **Wash Sale Detection**: Identify potential wash sales by scanning transactions across different accounts and symbols within the IRS-defined 61-day window (30 days before/after a loss).
+*   **Quarterly Tax Estimation**: Manage quarterly tax rates and estimated payments to visualize potential liabilities throughout the fiscal year.
+*   **Automated Reporting**: Generate professional Excel workbooks featuring:
+    *   Quarterly income summaries.
+    *   Detailed sale histories (Long-term vs. Short-term).
+    *   Visualized monthly income and sales trends using Clustered Column charts.
+    *   Wash sale adjustments and audit trails.
 
 ## Configuration
 
-The application utilizes an `appsettings.json` file for configuration. 
+The application utilizes an `appsettings.json` file for configuration. Key settings include:
+*   `MainDocumentFolder`: The root directory where brokerage CSV files are stored and reports are generated.
+*   `TaxRatesPercent`: Default tax rates for different income types (Dividend, Interest, LT/ST Capital Gains).
+*   `SecurityAliases`: Map different ticker symbols that represent the same underlying security for wash sale tracking.
 
 ## Disclaimer
 
@@ -24,7 +34,7 @@ The application utilizes an `appsettings.json` file for configuration.
 
 ## License
 
-The MIT License (MIT)
+MIT License
 
 Copyright (c) 2025 Samantha Copeland
 
@@ -45,3 +55,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+

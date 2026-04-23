@@ -17,11 +17,21 @@ namespace Carrotware.IncomeParser.Interfaces {
 		public List<TransactionRow> TransactionRows { get; set; }
 
 		protected string GetTicker(RowHelper rh) {
-			var colName = new string[] { "Ticker", "Security", "Symbol", "Symbol/CUSIP #", "Symbol/ CUSIP" };
+			var colName = new string[] { "Ticker", "Security", "Symbol", "Symbol/CUSIP #", "Symbol/ CUSIP", "Symbol(CUSIP)" };
 
-			foreach (var c in colName) {
-				if (rh.Exists(c)) {
-					return (rh.ReadCell(c) ?? "N/A").ToUpperInvariant();
+			foreach (var cn in colName) {
+				if (rh.Exists(cn)) {
+					var cellvalue = rh.ReadCell(cn);
+
+					if (string.IsNullOrEmpty(cellvalue) == false
+							&& cn.ToLowerInvariant() == "symbol(cusip)") {
+						var symb = cellvalue.Split('(');
+						if (symb.Length > 0) {
+							cellvalue = symb[0];
+						}
+					}
+
+					return (cellvalue ?? "N/A").ToUpperInvariant();
 				}
 			}
 
@@ -29,11 +39,11 @@ namespace Carrotware.IncomeParser.Interfaces {
 		}
 
 		protected DateTime? GetTradeDate(RowHelper rh) {
-			var colName = new string[3] { "Trade Date", "Post Date", "Date" };
+			var colName = new string[] { "Trade Date", "Post Date", "Run Date", "Date" };
 
-			foreach (var c in colName) {
-				if (rh.Exists(c)) {
-					return rh.ReadCell(c).StringToDate();
+			foreach (var cn in colName) {
+				if (rh.Exists(cn)) {
+					return rh.ReadCell(cn).StringToDate();
 				}
 			}
 
@@ -41,11 +51,11 @@ namespace Carrotware.IncomeParser.Interfaces {
 		}
 
 		protected DateTime? GetSettleDate(RowHelper rh) {
-			var colName = new string[3] { "Settlement Date", "Post Date", "Date" };
+			var colName = new string[] { "Settlement Date", "Post Date", "Date" };
 
-			foreach (var c in colName) {
-				if (rh.Exists(c)) {
-					return rh.ReadCell(c).StringToDate();
+			foreach (var cn in colName) {
+				if (rh.Exists(cn)) {
+					return rh.ReadCell(cn).StringToDate();
 				}
 			}
 
