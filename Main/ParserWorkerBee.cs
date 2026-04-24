@@ -4,6 +4,16 @@ using Carrotware.IncomeParser.Helpers;
 using Carrotware.IncomeParser.Interfaces;
 using Microsoft.Extensions.Logging;
 
+/*
+* Carrotware Income Parser
+* http://www.carrotware.com/
+*
+* Copyright 2025 Samantha Copeland
+* Licensed under the MIT license.
+*
+* Date: July 2025
+*/
+
 namespace Carrotware.IncomeParser {
 
 	public class ParserWorkerBee {

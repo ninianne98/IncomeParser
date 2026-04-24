@@ -10,6 +10,16 @@ using System.Drawing;
 using System.Text;
 using Color = System.Drawing.Color;
 
+/*
+* Carrotware Income Parser
+* http://www.carrotware.com/
+*
+* Copyright 2025 Samantha Copeland
+* Licensed under the MIT license.
+*
+* Date: July 2025
+*/
+
 namespace Carrotware.IncomeParser.Helpers {
 
 	public class XlsxExport {

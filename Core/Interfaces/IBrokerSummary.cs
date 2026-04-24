@@ -1,5 +1,15 @@
 ﻿using Carrotware.IncomeParser.Entities;
 
+/*
+* Carrotware Income Parser
+* http://www.carrotware.com/
+*
+* Copyright 2025 Samantha Copeland
+* Licensed under the MIT license.
+*
+* Date: July 2025
+*/
+
 namespace Carrotware.IncomeParser.Interfaces {
 
 	public interface IBrokerSummary {
