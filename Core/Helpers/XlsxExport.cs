@@ -1,4 +1,5 @@
-﻿using Carrotware.IncomeParser.Entities;
+﻿using Carrotware.IncomeParser.Core;
+using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Interfaces;
 using DocumentFormat.OpenXml.Drawing.Charts;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -127,9 +128,9 @@ namespace Carrotware.IncomeParser.Helpers {
 			}
 			this.Year = year;
 
-			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
 			//string fileName = Path.Join(settingFolder, ParserWorkerBee.OutputReportExcel);
-			string fileName = Path.Join(settingFolder, ParserWorkerBee.OutputReportExcelYear(year));
+			string fileName = Path.Join(settingFolder, CoreConfig.OutputReportExcelYear(year));
 
 			using (var ms = new MemoryStream()) {
 				using (var sl = new SLDocument()) {

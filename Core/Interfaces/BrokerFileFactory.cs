@@ -1,4 +1,5 @@
-﻿using Carrotware.IncomeParser.Entities;
+﻿using Carrotware.IncomeParser.Core;
+using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Helpers;
 using Microsoft.Extensions.Configuration;
 using System.Text;
@@ -41,19 +42,28 @@ namespace Carrotware.IncomeParser.Interfaces {
 			data.WriteLineFile(_rptFileNameTxt);
 		}
 
+		private List<IBrokerSummary?> _brokers = new List<IBrokerSummary?>();
+
 		public List<IBrokerSummary?> GetBrokerClasses() {
-			var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-			var brokerType = typeof(IBrokerSummary);
+			if (_brokers == null || _brokers.Count <= 0) {
+				var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+				var brokerType = typeof(IBrokerSummary);
 
-			var implementations = assemblies
-								.SelectMany(a => a.GetTypes())
-								.Where(t => brokerType.IsAssignableFrom(t) && t.IsClass
-											&& !t.IsInterface && !t.IsAbstract)
-								.ToList();
+				var brokerTypes = CoreConfig.ScanForBrokers();
 
-			var instances = implementations.Select(x => Activator.CreateInstance(x)).ToList();
+				var implementations = assemblies
+									.SelectMany(a => a.GetTypes())
+									.Where(t => brokerType.IsAssignableFrom(t) && t.IsClass
+												&& !t.IsInterface && !t.IsAbstract)
+									.Union(brokerTypes)
+									.ToList();
 
-			return instances.Where(x => x != null).Select(x => (IBrokerSummary?)x).ToList();
+				var instances = implementations.Select(x => Activator.CreateInstance(x)).ToList();
+
+				_brokers = instances.Where(x => x != null).Select(x => (IBrokerSummary?)x).ToList();
+			}
+
+			return _brokers;
 		}
 
 		public IFileCoreData? GenerateFileData(FileInfo file) {
@@ -129,13 +139,13 @@ namespace Carrotware.IncomeParser.Interfaces {
 			}
 			this.Year = year;
 
-			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
 
 			string fileNameCSV = string.Empty; // Path.Join(settingFolder, ParserWorkerBee.OutputCSV);
 			SetCsvReportFile(fileNameCSV);
 
 			//string fileNameTxt = Path.Join(settingFolder, ParserWorkerBee.OutputReport);
-			string fileNameTxt = Path.Join(settingFolder, ParserWorkerBee.OutputReportYear(this.Year));
+			string fileNameTxt = Path.Join(settingFolder, CoreConfig.OutputReportYear(this.Year));
 			SetTextReportFile(fileNameTxt);
 
 			foreach (var b in brokers.OrderBy(x => x.AccountIdentity).OrderBy(x => x.BrokerIdentity).OrderByDescending(x => x.GrandTotal)) {
@@ -145,12 +155,12 @@ namespace Carrotware.IncomeParser.Interfaces {
 		}
 
 		protected void PrintOutput(IBrokerSummary broker) {
-			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
 
 			var sb = new StringBuilder();
 			ConsoleWriter("-----------------------------------------------------------------------");
 
-			var securityAliases = ParserWorkerBee.Configuration.GetSection("SecurityAliases");
+			var securityAliases = CoreConfig.Configuration.GetSection("SecurityAliases");
 			var aliasesEntries = securityAliases.Get<List<string>>();
 			var aliases = aliasesEntries != null ? aliasesEntries.Select(x => x.Split(',')
 											.Select(x => x.ToUpperInvariant()).ToList()).ToList() : new List<List<string>>();
@@ -159,7 +169,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 			decimal adjYearShort = 0;
 
 			sb.AppendLine($"Account: {broker.AccountIdentity} - {broker.BrokerIdentity}".QuoteForCSV());
-			sb.AppendLine($"Generated: {ParserWorkerBee.AppDateTime}".QuoteForCSV());
+			sb.AppendLine($"Generated: {CoreConfig.AppDateTime}".QuoteForCSV());
 			SaveCSV(sb);
 
 			Console.ForegroundColor = ConsoleColor.DarkCyan;

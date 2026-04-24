@@ -1,4 +1,5 @@
-﻿using Carrotware.IncomeParser.Helpers;
+﻿using Carrotware.IncomeParser.Core;
+using Carrotware.IncomeParser.Helpers;
 using Carrotware.IncomeParser.Interfaces;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
@@ -30,7 +31,7 @@ namespace Carrotware.IncomeParser.Entities {
 			bool hasChanges = false;
 
 			var taxData = TaxYearData.Load(year);
-			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
 			var filePath = Directory.GetFiles(settingFolder, $"TaxYear*{year}.json").FirstOrDefault();
 
 			hasChanges = string.IsNullOrEmpty(filePath);
@@ -211,7 +212,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 			var taxData = new TaxYearData(year);
 
-			string settingFolder = ParserWorkerBee.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
 			var filePath = Directory.GetFiles(settingFolder, $"TaxYear*{year}.json").FirstOrDefault();
 
 			if (string.IsNullOrEmpty(filePath) == false && File.Exists(filePath)) {
@@ -253,7 +254,7 @@ namespace Carrotware.IncomeParser.Entities {
 			var rates = Enum.GetValues<IncomeType>().Where(x => x != IncomeType.Unknown).ToList();
 
 			if (this.TaxRates.Count != rates.Count) {
-				var taxRates = ParserWorkerBee.Configuration.GetSection("TaxRatesPercent").Get<Dictionary<string, object>>();
+				var taxRates = CoreConfig.Configuration.GetSection("TaxRatesPercent").Get<Dictionary<string, object>>();
 				double rt = 0.30;
 
 				foreach (var r in rates) {
