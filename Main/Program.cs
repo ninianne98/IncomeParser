@@ -16,8 +16,16 @@ internal class Program {
 	private static void Main(string[] args) {
 		CoreConfig.SetLogger();
 
-		Console.WriteLine("=====================================================");
-		CoreConfig.PrintDisclaimer();
+		CoreConfig.PrintAppName();
+
+		if (!CoreConfig.PrintDisclaimer(true)) {
+			Console.ForegroundColor = ConsoleColor.Red;
+			Console.WriteLine("\nTerms not accepted. Application will exit.\n");
+			Console.ResetColor();
+
+			Thread.Sleep(15 * 1000);
+			return;
+		}
 
 		var bee = new ParserWorkerBee();
 		bee.RunParser();
@@ -27,6 +35,9 @@ internal class Program {
 		Thread.Sleep(500);
 
 		CoreConfig.PrintDisclaimer();
+
+		CoreConfig.PrintAppName();
+
 		Thread.Sleep(15 * 1000);
 	}
 }

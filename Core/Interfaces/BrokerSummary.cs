@@ -119,7 +119,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 							   .FirstOrDefault();
 				}
 
-				if (this.Year <= 1970) {
+				if (this.Year <= ParseHelper.MIN_YEAR) {
 					this.Year = DateTime.Now.Year;
 				}
 			}

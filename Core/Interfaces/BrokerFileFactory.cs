@@ -2,7 +2,16 @@
 using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Helpers;
 using Microsoft.Extensions.Configuration;
-using System.Text;
+
+/*
+* Carrotware Income Parser
+* http://www.carrotware.com/
+*
+* Copyright 2025 Samantha Copeland
+* Licensed under the MIT license.
+*
+* Date: July 2025
+*/
 
 namespace Carrotware.IncomeParser.Interfaces {
 
@@ -10,7 +19,6 @@ namespace Carrotware.IncomeParser.Interfaces {
 		protected List<IFileCoreData> _documents = new List<IFileCoreData>();
 
 		protected string _rptFileNameTxt = string.Empty;
-		protected string _rptFileNameCSV = string.Empty;
 
 		public BrokerFileFactory() {
 		}
@@ -19,17 +27,6 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 		protected void SetTextReportFile(string fileName) {
 			_rptFileNameTxt = fileName;
-		}
-
-		protected void SetCsvReportFile(string fileName) {
-			_rptFileNameCSV = fileName;
-		}
-
-		protected void SaveCSV(StringBuilder sb) {
-			if (string.IsNullOrEmpty(_rptFileNameCSV) == false) {
-				sb.WriteFile(_rptFileNameCSV);
-			}
-			sb.Clear();
 		}
 
 		protected void ConsoleWriter() {
@@ -46,6 +43,8 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 		public List<IBrokerSummary?> GetBrokerClasses() {
 			if (_brokers == null || _brokers.Count <= 0) {
+				_brokers = new List<IBrokerSummary?>();
+
 				var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 				var brokerType = typeof(IBrokerSummary);
 
@@ -109,6 +108,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 							if (instance != null) {
 								instance.SetAccountIdentity(acct);
 								instance.LoadData(documents);
+
 								brokers.Add(instance);
 							}
 						}
@@ -117,7 +117,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 			}
 
 			var year = brokers.Max(x => x.Year);
-			if (year <= 1970) {
+			if (year <= ParseHelper.MIN_YEAR) {
 				year = DateTime.Now.Year;
 			}
 
@@ -134,17 +134,13 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 		public void PrintOutput(List<IBrokerSummary> brokers) {
 			var year = brokers.Max(x => x.Year);
-			if (year <= 1970) {
+			if (year <= ParseHelper.MIN_YEAR) {
 				year = DateTime.Now.Year;
 			}
 			this.Year = year;
 
 			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
 
-			string fileNameCSV = string.Empty; // Path.Join(settingFolder, ParserWorkerBee.OutputCSV);
-			SetCsvReportFile(fileNameCSV);
-
-			//string fileNameTxt = Path.Join(settingFolder, ParserWorkerBee.OutputReport);
 			string fileNameTxt = Path.Join(settingFolder, CoreConfig.OutputReportYear(this.Year));
 			SetTextReportFile(fileNameTxt);
 
@@ -157,7 +153,6 @@ namespace Carrotware.IncomeParser.Interfaces {
 		protected void PrintOutput(IBrokerSummary broker) {
 			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
 
-			var sb = new StringBuilder();
 			ConsoleWriter("-----------------------------------------------------------------------");
 
 			var securityAliases = CoreConfig.Configuration.GetSection("SecurityAliases");
@@ -167,10 +162,6 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 			decimal adjYearLong = 0;
 			decimal adjYearShort = 0;
-
-			sb.AppendLine($"Account: {broker.AccountIdentity} - {broker.BrokerIdentity}".QuoteForCSV());
-			sb.AppendLine($"Generated: {CoreConfig.AppDateTime}".QuoteForCSV());
-			SaveCSV(sb);
 
 			Console.ForegroundColor = ConsoleColor.DarkCyan;
 			ConsoleWriter();
@@ -196,36 +187,6 @@ namespace Carrotware.IncomeParser.Interfaces {
 			ConsoleWriter($"Total Interest:\t{interest:C2} ");
 			ConsoleWriter($"Total LTG Distribution and Gains/Losses:\t{ltg:C2} ");
 			ConsoleWriter($"Total STG Distribution and Gains/Losses:\t{stg:C2} ");
-
-			sb.Append(",");
-			sb.Append("Dividends".QuoteForCSV() + ",");
-			sb.Append("Interest".QuoteForCSV() + ",");
-			sb.Append("LT CG".QuoteForCSV() + ",");
-			sb.Append("ST CG".QuoteForCSV() + ",");
-			sb.AppendLine();
-			SaveCSV(sb);
-
-			sb.Append(",");
-			sb.Append($"{dividends:C2}".QuoteForCSV() + ",");
-			sb.Append($"{interest:C2}".QuoteForCSV() + ",");
-			sb.Append($"{ltg:C2}".QuoteForCSV() + ",");
-			sb.Append($"{stg:C2}".QuoteForCSV() + ",");
-			sb.AppendLine();
-			SaveCSV(sb);
-
-			sb.AppendLine(",");
-			sb.Append(",");
-			sb.Append("Quarter".QuoteForCSV() + ",");
-			sb.Append("Dividends".QuoteForCSV() + ",");
-			sb.Append("Interest".QuoteForCSV() + ",");
-			sb.Append("LT CG".QuoteForCSV() + ",");
-			sb.Append("ST CG".QuoteForCSV() + ",");
-			sb.Append("LT CG Adjusted".QuoteForCSV() + ",");
-			sb.Append("LT CG Adjustment".QuoteForCSV() + ",");
-			sb.Append("ST CG Adjusted".QuoteForCSV() + ",");
-			sb.Append("ST CG Adjustment".QuoteForCSV() + ",");
-			sb.AppendLine();
-			SaveCSV(sb);
 
 			var year = broker.Year;
 
@@ -269,15 +230,6 @@ namespace Carrotware.IncomeParser.Interfaces {
 					ConsoleWriter($"\tQ{q} LT CG:\t{ltgQ:C2} ");
 					ConsoleWriter($"\tQ{q} ST CG:\t{stgQ:C2} ");
 					ConsoleWriter();
-
-					sb.Append(",");
-					sb.Append($"Q{q} {year}".QuoteForCSV() + ",");
-					sb.Append($"{dividendsQ:C2}".QuoteForCSV() + ",");
-					sb.Append($"{interestQ:C2}".QuoteForCSV() + ",");
-					sb.Append($"{ltgQ:C2}".QuoteForCSV() + ",");
-					sb.Append($"{stgQ:C2}".QuoteForCSV() + ",");
-					sb.AppendLine();
-					SaveCSV(sb);
 
 					var quarterDiv = new QuarterlyTotalRow(IncomeType.Dividend, q, dividendsQ);
 					var quarterInt = new QuarterlyTotalRow(IncomeType.Interest, q, interestQ);
@@ -366,19 +318,6 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 						quarterLong.Adjustment = adjQL;
 						quarterShort.Adjustment = adjQS;
-
-						sb.Append(",");
-						sb.Append($"Q{q} {year} ***".QuoteForCSV() + ",");
-						sb.Append($"{dividendsQ:C2}".QuoteForCSV() + ",");
-						sb.Append($"{interestQ:C2}".QuoteForCSV() + ",");
-						sb.Append($"{ltgQ:C2}".QuoteForCSV() + ",");
-						sb.Append($"{stgQ:C2}".QuoteForCSV() + ",");
-						sb.Append($"{ltgQ_Adj:C2}".QuoteForCSV() + ",");
-						sb.Append($"{adjQL:C2}".QuoteForCSV() + ",");
-						sb.Append($"{stgQ_Adj:C2}".QuoteForCSV() + ",");
-						sb.Append($"{adjQS:C2}".QuoteForCSV() + ",");
-						sb.AppendLine();
-						SaveCSV(sb);
 					} else {
 						ConsoleWriter("\t† No detected wash sales, no quarterly adjustment");
 					}
@@ -400,41 +339,10 @@ namespace Carrotware.IncomeParser.Interfaces {
 				ConsoleWriter($"Total Interest:\t{interest:C2} ");
 				ConsoleWriter($"Total ADJUSTED LTG Distribution and Gains/Losses:\t{adjL:C2} \t- adding back {adjYearLong:C2}");
 				ConsoleWriter($"Total ADJUSTED STG Distribution and Gains/Losses:\t{adjS:C2} \t- adding back {adjYearShort:C2}");
-
-				sb.Append(",");
-				sb.AppendLine();
-
-				sb.Append(",");
-				sb.Append("Dividends".QuoteForCSV() + ",");
-				sb.Append("Interest".QuoteForCSV() + ",");
-				sb.Append("LT CG".QuoteForCSV() + ",");
-				sb.Append("ST CG".QuoteForCSV() + ",");
-				sb.Append("LT CG Adjusted".QuoteForCSV() + ",");
-				sb.Append("LT CG Adjustment".QuoteForCSV() + ",");
-				sb.Append("ST CG Adjusted".QuoteForCSV() + ",");
-				sb.Append("ST CG Adjustment".QuoteForCSV() + ",");
-				sb.AppendLine();
-				SaveCSV(sb);
-
-				sb.Append(",");
-				sb.Append($"{dividends:C2}".QuoteForCSV() + ",");
-				sb.Append($"{interest:C2}".QuoteForCSV() + ",");
-				sb.Append($"{ltg:C2}".QuoteForCSV() + ",");
-				sb.Append($"{stg:C2}".QuoteForCSV() + ",");
-				sb.Append($"{adjL:C2}".QuoteForCSV() + ",");
-				sb.Append($"{adjYearLong:C2}".QuoteForCSV() + ",");
-				sb.Append($"{adjS:C2}".QuoteForCSV() + ",");
-				sb.Append($"{adjYearShort:C2}".QuoteForCSV() + ",");
-				sb.AppendLine();
-				SaveCSV(sb);
 			} else {
 				ConsoleWriter("");
 				ConsoleWriter("\t† No detected wash sales, no annual adjustment");
 			}
-
-			sb.Append(",");
-			sb.AppendLine();
-			SaveCSV(sb);
 
 			ConsoleWriter("-----------------------------------------------------------------------");
 		}

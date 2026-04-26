@@ -133,7 +133,7 @@ namespace Carrotware.IncomeParser.Helpers {
 
 		public void GenerateReport() {
 			var year = this.BrokerSummaries.Max(x => x.Year);
-			if (year <= 1970) {
+			if (year <= ParseHelper.MIN_YEAR) {
 				year = DateTime.Now.Year;
 			}
 			this.Year = year;

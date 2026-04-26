@@ -23,7 +23,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 		public TaxDataCollector(IEnumerable<IBrokerSummary> brokers) {
 			var year = brokers.Max(x => x.Year);
-			if (year <= 1970) {
+			if (year <= ParseHelper.MIN_YEAR) {
 				year = DateTime.Now.Year;
 			}
 
@@ -63,11 +63,34 @@ namespace Carrotware.IncomeParser.Entities {
 				rateDict[menuKey] = et;
 			}
 
+			CoreConfig.PrintAppName();
+
+			if (this.BrokerSummaries != null && this.BrokerSummaries.Any()) {
+				var summaryGroups = this.BrokerSummaries
+											.GroupBy(b => b.BrokerIdentity)
+											.OrderBy(g => g.Key);
+
+				Console.WriteLine();
+
+				Console.ForegroundColor = ConsoleColor.Cyan;
+				Console.WriteLine("========= Brokerage Accounts Found =========");
+				foreach (var group in summaryGroups) {
+					Console.WriteLine($"\t{group.Key}: {group.Select(x => x.AccountIdentity).Count()} account(s)");
+				}
+				Console.WriteLine("============================================");
+				Console.ResetColor();
+
+				Console.WriteLine();
+			}
+
+			Console.WriteLine();
+
 			bool keepGoing = true;
-			Console.WriteLine("\n\n");
 
 			while (keepGoing) {
+				Console.ForegroundColor = ConsoleColor.Green;
 				Console.WriteLine($"========= Tax Year: {this.Year} =========");
+				Console.ResetColor();
 
 				var sortedQuarters = taxData.Quarters.OrderBy(x => x.Quarter).ToList();
 
@@ -206,7 +229,7 @@ namespace Carrotware.IncomeParser.Entities {
 	public class TaxYearData {
 
 		public TaxYearData() {
-			this.Year = 1970;
+			this.Year = ParseHelper.MIN_YEAR;
 			LoadQuarters();
 			LoadRates();
 		}
@@ -216,7 +239,7 @@ namespace Carrotware.IncomeParser.Entities {
 		}
 
 		public static TaxYearData Load(int year) {
-			if (year <= 1970) {
+			if (year <= ParseHelper.MIN_YEAR) {
 				year = DateTime.Now.Year;
 			}
 
@@ -269,7 +292,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 				foreach (var r in rates) {
 					var key = r.ToString();
-					rt = 0.25;
+					rt = 0.30;
 
 					if (taxRates != null && taxRates.ContainsKey(key)) {
 						var taxRate = taxRates[key].ToString() ?? "20";

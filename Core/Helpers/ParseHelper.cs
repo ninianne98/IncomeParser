@@ -26,6 +26,8 @@ namespace Carrotware.IncomeParser.Helpers {
 			return attribute?.Description ?? source.ToString() ?? typeof(T).ToString() ?? string.Empty;
 		}
 
+		public const int MIN_YEAR = 1970;
+
 		public static bool IsAlphaNumeric(this string text) {
 			return !string.IsNullOrEmpty(text) && text.All(Char.IsLetterOrDigit);
 		}

@@ -66,17 +66,14 @@ namespace Carrotware.IncomeParser.Core {
 			}
 		}
 
-		public static string OutputCSV => string.Format("Statement_{0:yyMMdd}_{0:HHmmss}.csv", AppDateTime);
-
-		public static string OutputCSV_Year(int year) =>
-			string.Format("Statement_{0}_{1:yyMMdd}_{1:HHmmss}.csv", year, AppDateTime);
-
-		public static string OutputReport => string.Format("Statement_{0:yyMMdd}_{0:HHmmss}.txt", AppDateTime);
+		public static string OutputReport =>
+			string.Format("Statement_{0:yyMMdd}_{0:HHmmss}.txt", AppDateTime);
 
 		public static string OutputReportYear(int year) =>
 			string.Format("Statement_{0}_{1:yyMMdd}_{1:HHmmss}.txt", year, AppDateTime);
 
-		public static string OutputReportExcel => string.Format("Statement_{0:yyMMdd}_{0:HHmmss}.xlsx", AppDateTime);
+		public static string OutputReportExcel =>
+			string.Format("Statement_{0:yyMMdd}_{0:HHmmss}.xlsx", AppDateTime);
 
 		public static string OutputReportExcelYear(int year) =>
 			string.Format("Statement_{0}_{1:yyMMdd}_{1:HHmmss}.xlsx", year, AppDateTime);
@@ -85,6 +82,7 @@ namespace Carrotware.IncomeParser.Core {
 			var fldr = AppDomain.CurrentDomain.BaseDirectory ?? AppDomain.CurrentDomain.RelativeSearchPath ?? "./";
 
 			var files = new List<string>();
+
 			try {
 				files = Directory.GetFiles(fldr, "*.dll", SearchOption.AllDirectories).ToList();
 			} catch (Exception ex) {
@@ -129,7 +127,17 @@ namespace Carrotware.IncomeParser.Core {
 			return typeList;
 		}
 
-		public static void PrintDisclaimer() {
+		public static void PrintAppName() {
+			Console.ForegroundColor = ConsoleColor.DarkYellow;
+			Console.WriteLine("=============================================================");
+			Console.WriteLine("=================  Carrotware Income Parser  ================");
+			Console.WriteLine("=============================================================");
+			Console.ResetColor();
+		}
+
+		public static bool PrintDisclaimer(bool requireAcceptance = false) {
+			var userAccept = (Configuration["UserAccept"] ?? "false").ToLowerInvariant() == "true";
+
 			Console.WriteLine();
 			Console.WriteLine();
 			Console.ForegroundColor = ConsoleColor.Yellow;
@@ -158,8 +166,42 @@ namespace Carrotware.IncomeParser.Core {
 			Console.ForegroundColor = ConsoleColor.Yellow;
 			Console.WriteLine("================================================================================");
 			Console.ResetColor();
+
+			if (userAccept) {
+				if (requireAcceptance) {
+					Console.WriteLine();
+
+					Console.ForegroundColor = ConsoleColor.Green;
+					Console.WriteLine("You have pre-accepted the terms");
+					Console.ResetColor();
+
+					Console.WriteLine();
+					Console.WriteLine();
+				}
+
+				return true;
+			} else {
+				if (requireAcceptance) {
+					Console.WriteLine();
+
+					Console.ForegroundColor = ConsoleColor.Cyan;
+					Console.Write("Do you accept these terms? (Type 'YES' to continue):  ");
+
+					var input = Console.ReadLine()?.Trim().ToUpperInvariant();
+					if (input != "YES") {
+						return false;
+					}
+					Console.ResetColor();
+
+					Console.WriteLine();
+					Console.WriteLine();
+				}
+			}
+
+			Console.ResetColor();
 			Console.WriteLine();
 			Console.WriteLine();
+			return true;
 		}
 	}
 }

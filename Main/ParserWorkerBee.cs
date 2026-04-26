@@ -53,8 +53,6 @@ namespace Carrotware.IncomeParser {
 			var brokers = factory.LoadBrokerDocuments(documents);
 
 			Thread.Sleep(250);
-			//string fileNameCSV = Path.Join(settingFolder, OutputCSV);
-			//File.WriteAllText(fileNameCSV, string.Empty);
 
 			var year = brokers.Max(x => x.Year);
 			//string fileNameTxt = Path.Join(settingFolder, OutputReport);

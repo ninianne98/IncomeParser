@@ -12,7 +12,8 @@ namespace Carrotware.IncomeParser.Entities {
 		public WashMatch(GainLossRow row, List<string> alts, IEnumerable<GainLossRow> gains) {
 			this.GainLossRow = row;
 			this.AlternateTickers = alts;
-			_gains = gains.ToList();
+
+			_gains = gains != null ? gains.ToList() : new List<GainLossRow>();
 
 			Calculate();
 		}
@@ -24,7 +25,7 @@ namespace Carrotware.IncomeParser.Entities {
 			var washStart = glr.DateClosed.AddDays(-31).Date;
 			var washEnd = glr.DateClosed.AddDays(31).Date;
 
-			_losses = _gains.Where(x => x.GainLoss < 0 && x.Quantity != 0).ToList();
+			_losses = _gains != null ? _gains.Where(x => x.GainLoss < 0 && x.Quantity != 0).ToList() : new List<GainLossRow>();
 			var tickerLoss = _losses.Where(x => x.SecuritySymbol == ticker);
 
 			var lotCount = tickerLoss.Count();
@@ -50,7 +51,7 @@ namespace Carrotware.IncomeParser.Entities {
 			var lotCount = this.LotCount;
 
 			// only need to scan if there are losses to the main ticker, if there's no loss, can't have a wash
-			if (lotCount > 0) {
+			if (lotCount > 0 && documents != null) {
 				foreach (var d in documents.Where(x => x is IAccountTransaction)) {
 					var doc = (IAccountTransaction)d;
 					var washesFound = doc.TransactionRows.Where(x => alternates.Contains(x.SecuritySymbol.ToUpperInvariant())
