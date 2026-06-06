@@ -25,7 +25,7 @@ namespace Carrotware.IncomeParser {
 			var factory = new BrokerFileFactory();
 			var documents = new List<IFileCoreData>();
 
-			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.MainDocumentFolder;
 			Console.WriteLine($"Main Document Folder : {settingFolder}");
 
 			var files = Directory.GetFiles(settingFolder, "*.csv", SearchOption.AllDirectories).ToList()

@@ -1,7 +1,6 @@
 ﻿using Carrotware.IncomeParser.Core;
 using Carrotware.IncomeParser.Helpers;
 using Carrotware.IncomeParser.Interfaces;
-using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -41,7 +40,7 @@ namespace Carrotware.IncomeParser.Entities {
 			bool hasChanges = false;
 
 			var taxData = TaxYearData.Load(year);
-			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.MainDocumentFolder;
 			var filePath = Directory.GetFiles(settingFolder, $"TaxYear*{year}.json").FirstOrDefault();
 
 			hasChanges = string.IsNullOrEmpty(filePath);
@@ -97,7 +96,8 @@ namespace Carrotware.IncomeParser.Entities {
 				Console.WriteLine("\n   Quarters ------------------------");
 				foreach (var q in sortedQuarters) {
 					var payDate = (q.DateOfPayment == DateTime.MinValue || q.DateOfPayment == null) ? "N/A" : $"{q.DateOfPayment:d}";
-					Console.WriteLine($"\t[ {q.Quarter} ]  Q{q.Quarter}: Est={q.EstPayment:C}, Payroll={q.Payroll:C}, Date={payDate}");
+					Console.WriteLine($"\t[ {q.Quarter} ]  Q{q.Quarter} {q.Year}:  {q.QuarterStartDate:d}-{q.QuarterEndDate:d}");
+					Console.WriteLine($"\t\t Est={q.EstPayment:C}, Payroll={q.Payroll:C}, Date={payDate}");
 				}
 
 				Console.WriteLine("\n   Tax Rates ------------------------");
@@ -105,6 +105,8 @@ namespace Carrotware.IncomeParser.Entities {
 					var menuKey = IncomeTypeMenu(tri.IncomeType);
 					Console.WriteLine($"\t[ {menuKey} ]  {tri.IncomeType.GetDescription()}: {tri.Percentage:P}");
 				}
+
+				Console.WriteLine($"\n\t[ W ]  Save Config \n");
 
 				var finishMsg = hasChanges ? "Finish and Save" : "Continue";
 
@@ -115,16 +117,19 @@ namespace Carrotware.IncomeParser.Entities {
 				var inputInt = -1;
 				var input = Console.ReadLine();
 
-				input = string.IsNullOrEmpty(input) ? input : input.ToUpperInvariant().Trim();
+				input = string.IsNullOrWhiteSpace(input) ? string.Empty : input.ToUpperInvariant().Trim();
 				var inRet = int.TryParse(input, out inputInt);
 
-				if (inRet && inputInt == 0) {
+				if (inRet && inputInt == 0 && input.Length == 1) {
 					keepGoing = false;
+				} else if (input == "W" && input.Length == 1) {
+					//hasChanges = true;
+					SaveFile(filePath, taxData);
 				} else if (inRet && inputInt >= 1 && inputInt <= 4) {
 					var item = taxData.Quarters.Where(x => x.Quarter == inputInt).First();
 					hasChanges |= PromptUpdateQuarter(item);
 				} else if (string.IsNullOrWhiteSpace(input) == false && input.Length == 1
-							&& rateDict.ContainsKey(input)) {
+									&& rateDict.ContainsKey(input)) {
 					var selRate = rateDict[input];
 					var item = taxData.TaxRates.Where(x => x.IncomeType == selRate).First();
 					hasChanges |= PromptUpdateTaxRate(item);
@@ -137,17 +142,31 @@ namespace Carrotware.IncomeParser.Entities {
 
 			// if changed or new file, save!
 			if (hasChanges || File.Exists(filePath) == false) {
-				if (File.Exists(filePath)) {
-					var backupPath = $"{filePath}.{DateTime.Now:yyyyMMddHHmmss}.bak";
-					File.Copy(filePath, backupPath, true);
-				}
-
-				var options = new JsonSerializerOptions { WriteIndented = true };
-				File.WriteAllText(filePath, JsonSerializer.Serialize(taxData, options));
-				Console.WriteLine($"\n[SUCCESS] Backup created and {Path.GetFileName(filePath)} updated.\n\n");
+				SaveFile(filePath, taxData);
 			}
 
 			Console.WriteLine("\n\n");
+		}
+
+		protected void SaveFile(string filePath, TaxYearData taxData) {
+			var exists = File.Exists(filePath);
+
+			if (exists) {
+				var backupPath = $"{filePath}.{DateTime.Now:yyyyMMddHHmmss}.bak";
+				File.Copy(filePath, backupPath, true);
+			}
+
+			var options = new JsonSerializerOptions { WriteIndented = true };
+			File.WriteAllText(filePath, JsonSerializer.Serialize(taxData, options));
+
+			if (exists) {
+				Console.ForegroundColor = ConsoleColor.Blue;
+				Console.WriteLine($"\n[SUCCESS] Backup created and {Path.GetFileName(filePath)} updated.\n\n");
+			} else {
+				Console.ForegroundColor = ConsoleColor.Gray;
+				Console.WriteLine($"\n[SUCCESS] Config {Path.GetFileName(filePath)} created.\n\n");
+			}
+			Console.ResetColor();
 		}
 
 		private bool PromptUpdateTaxRate(TaxRateInfo info) {
@@ -234,8 +253,10 @@ namespace Carrotware.IncomeParser.Entities {
 			LoadRates();
 		}
 
-		public TaxYearData(int year) : this() {
+		public TaxYearData(int year) {
 			this.Year = year;
+			LoadQuarters();
+			LoadRates();
 		}
 
 		public static TaxYearData Load(int year) {
@@ -245,7 +266,7 @@ namespace Carrotware.IncomeParser.Entities {
 
 			var taxData = new TaxYearData(year);
 
-			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.MainDocumentFolder;
 			var filePath = Directory.GetFiles(settingFolder, $"TaxYear*{year}.json").FirstOrDefault();
 
 			if (string.IsNullOrEmpty(filePath) == false && File.Exists(filePath)) {
@@ -257,10 +278,14 @@ namespace Carrotware.IncomeParser.Entities {
 				taxData = new TaxYearData(year);
 			}
 
+			taxData.LoadQuarters();
+
 			return taxData;
 		}
 
 		protected void LoadQuarters() {
+			int year = this.Year;
+
 			if (this.Quarters == null) {
 				this.Quarters = new List<QuarterInfo>();
 			}
@@ -268,13 +293,17 @@ namespace Carrotware.IncomeParser.Entities {
 			if (this.Quarters.Count != 4) {
 				for (var q = 1; q <= 4; q++) {
 					if (this.Quarters.Where(x => x.Quarter == q).Any() == false) {
-						var qi = new QuarterInfo(q);
+						var qi = new QuarterInfo(q, year);
 						this.Quarters.Add(qi);
 					}
 				}
 			}
 
 			foreach (var q in this.Quarters) {
+				if (q.Year != year) {
+					q.Year = year;
+				}
+
 				q.FormatDate();
 			}
 		}
@@ -287,7 +316,7 @@ namespace Carrotware.IncomeParser.Entities {
 			var rates = Enum.GetValues<IncomeType>().Where(x => x != IncomeType.Unknown).ToList();
 
 			if (this.TaxRates.Count != rates.Count) {
-				var taxRates = CoreConfig.Configuration.GetSection("TaxRatesPercent").Get<Dictionary<string, object>>();
+				var taxRates = CoreConfig.TaxRatesPercent;
 				double rt = 0.30;
 
 				foreach (var r in rates) {
@@ -352,20 +381,49 @@ namespace Carrotware.IncomeParser.Entities {
 
 		public QuarterInfo() { }
 
-		public QuarterInfo(int quarter) {
+		public QuarterInfo(int quarter, int year) {
 			this.Quarter = quarter;
+			this.Year = year;
+
+			SetDefaultDates();
 		}
 
 		public int Quarter { get; set; }
+		public int Year { get; set; }
 		public decimal EstPayment { get; set; }
 		public decimal Payroll { get; set; }
 		public string? PaymentDate { get; set; }
+
+		public string? StartDate { get; set; }
+		public string? EndDate { get; set; }
+
+		[JsonIgnore]
+		public DateTime QuarterStartDate { get { return Convert.ToDateTime(this.StartDate); } }
+
+		[JsonIgnore]
+		public DateTime QuarterEndDate { get { return Convert.ToDateTime(this.EndDate); } }
 
 		[JsonIgnore]
 		public DateTime? DateOfPayment {
 			get {
 				var date = this.PaymentDate;
 				return SetDate(date);
+			}
+		}
+
+		protected void SetDefaultDates() {
+			if (string.IsNullOrEmpty(this.StartDate) || string.IsNullOrEmpty(this.EndDate)
+					|| this.StartDate.StartsWith(this.Year.ToString()) == false
+					|| this.EndDate.StartsWith(this.Year.ToString()) == false) {
+				var monthInt = CoreConfig.GetMonthsForQuarter(this.Quarter);
+				var startMonth = monthInt.Min();
+				var endMonth = monthInt.Max();
+
+				var startD = ParseHelper.GetStartDateByNumber(this.Year, startMonth);
+				var endD = ParseHelper.GetEndDateByNumber(this.Year, endMonth);
+
+				this.StartDate = startD.ToString("yyyy-MM-dd");
+				this.EndDate = endD.ToString("yyyy-MM-dd");
 			}
 		}
 
@@ -378,6 +436,8 @@ namespace Carrotware.IncomeParser.Entities {
 			} else {
 				this.PaymentDate = string.Empty;
 			}
+
+			SetDefaultDates();
 		}
 
 		public DateTime? SetDate(string? dateInput) {

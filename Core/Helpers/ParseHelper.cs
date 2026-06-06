@@ -311,6 +311,22 @@ namespace Carrotware.IncomeParser.Helpers {
 			}
 		}
 
+		public static DateTime GetStartDateByNumber(int year, int month) {
+			return new DateTime(year, month, 1);
+		}
+
+		public static DateTime GetEndDateByNumber(int year, int month) {
+			int days = DateTime.DaysInMonth(year, month);
+
+			return new DateTime(year, month, days, 23, 59, 59);
+		}
+
+		public static DateTime GetEndOfMonthByDate(DateTime month) {
+			int days = DateTime.DaysInMonth(month.Year, month.Month);
+
+			return new DateTime(month.Year, month.Month, days, 23, 59, 59);
+		}
+
 		public static string ReadFirst2KB(string filePath) {
 			return ReadFirstXKB(2, filePath);
 		}

@@ -1,4 +1,7 @@
-﻿namespace Carrotware.IncomeParser.Entities {
+﻿using Carrotware.IncomeParser.Core;
+using Carrotware.IncomeParser.Helpers;
+
+namespace Carrotware.IncomeParser.Entities {
 
 	public class QuarterRow {
 
@@ -11,19 +14,12 @@
 			this.Quarter = quarter;
 			this.Year = year;
 
-			var startMonth = ((quarter - 1) * 3 + 1);
-			var endMonth = quarter * 3;
-			int endMonthEndDate = DateTime.DaysInMonth(year, endMonth);
+			var monthInt = CoreConfig.GetMonthsForQuarter(quarter);
+			var startMonth = monthInt.Min();
+			var endMonth = monthInt.Max();
 
-			this.QuarterStartDate = new DateTime(year, startMonth, 1);
-			this.QuarterEndDate = new DateTime(year, endMonth, endMonthEndDate);
-
-			this.QuarterlyTotalRows = new List<QuarterlyTotalRow>();
-		}
-
-		public QuarterRow(int quarter, int year, DateTime startD, DateTime endD) : this(quarter, year) {
-			this.QuarterStartDate = startD;
-			this.QuarterEndDate = endD;
+			this.QuarterStartDate = ParseHelper.GetStartDateByNumber(year, startMonth);
+			this.QuarterEndDate = ParseHelper.GetEndDateByNumber(year, endMonth);
 
 			this.QuarterlyTotalRows = new List<QuarterlyTotalRow>();
 			this.WashMatches = new List<WashMatch>();

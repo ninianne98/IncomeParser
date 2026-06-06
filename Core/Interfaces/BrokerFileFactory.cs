@@ -1,7 +1,6 @@
 ﻿using Carrotware.IncomeParser.Core;
 using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Helpers;
-using Microsoft.Extensions.Configuration;
 
 /*
 * Carrotware Income Parser
@@ -139,7 +138,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 			}
 			this.Year = year;
 
-			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.MainDocumentFolder;
 
 			string fileNameTxt = Path.Join(settingFolder, CoreConfig.OutputReportYear(this.Year));
 			SetTextReportFile(fileNameTxt);
@@ -151,14 +150,11 @@ namespace Carrotware.IncomeParser.Interfaces {
 		}
 
 		protected void PrintOutput(IBrokerSummary broker) {
-			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.MainDocumentFolder;
 
 			ConsoleWriter("-----------------------------------------------------------------------");
 
-			var securityAliases = CoreConfig.Configuration.GetSection("SecurityAliases");
-			var aliasesEntries = securityAliases.Get<List<string>>();
-			var aliases = aliasesEntries != null ? aliasesEntries.Select(x => x.Split(',')
-											.Select(x => x.ToUpperInvariant()).ToList()).ToList() : new List<List<string>>();
+			var aliases = CoreConfig.SecurityAliases;
 
 			decimal adjYearLong = 0;
 			decimal adjYearShort = 0;
@@ -191,14 +187,11 @@ namespace Carrotware.IncomeParser.Interfaces {
 			var year = broker.Year;
 
 			for (int q = 1; q <= 4; q++) {
-				var startMonth = (q - 1) * 3 + 1;
-				var endMonth = q * 3;
-				int endMonthEndDate = DateTime.DaysInMonth(year, endMonth);
+				var quarter = new QuarterRow(q, year);
 
-				var startDate = new DateTime(year, startMonth, 1);
-				var endDate = new DateTime(year, endMonth, endMonthEndDate);
+				var startDate = quarter.QuarterStartDate;
+				var endDate = quarter.QuarterEndDate;
 
-				var quarter = new QuarterRow(q, year, startDate, endDate);
 				broker.QuarterRows.Add(quarter);
 
 				ConsoleWriter("-----------------------------");

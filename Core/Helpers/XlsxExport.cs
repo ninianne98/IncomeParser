@@ -138,7 +138,7 @@ namespace Carrotware.IncomeParser.Helpers {
 			}
 			this.Year = year;
 
-			string settingFolder = CoreConfig.Configuration["MainDocumentFolder"] ?? string.Empty;
+			string settingFolder = CoreConfig.MainDocumentFolder;
 			//string fileName = Path.Join(settingFolder, ParserWorkerBee.OutputReportExcel);
 			string fileName = Path.Join(settingFolder, CoreConfig.OutputReportExcelYear(year));
 
@@ -183,11 +183,6 @@ namespace Carrotware.IncomeParser.Helpers {
 					ms.CopyTo(fs);
 				}
 			}
-		}
-
-		public DateTime GetEndOfMonthByDate(DateTime month) {
-			int days = DateTime.DaysInMonth(month.Year, month.Month);
-			return new DateTime(month.Year, month.Month, days, 23, 59, 59);
 		}
 
 		protected SLDocument ReportIncomeTotal(SLDocument sl) {
@@ -254,8 +249,8 @@ namespace Carrotware.IncomeParser.Helpers {
 				var colMonthIdx = colFirstIdx + m + 1;
 				var colMonth = ColNumberToLetter(colMonthIdx);
 
-				var monthStart = new DateTime(year, m, 1);
-				var monthEnd = GetEndOfMonthByDate(monthStart);
+				var monthStart = ParseHelper.GetStartDateByNumber(year, m);
+				var monthEnd = ParseHelper.GetEndOfMonthByDate(monthStart);
 
 				//income for the month
 				var monthIncome = income.Where(x => x.TransactionDate >= monthStart && x.TransactionDate <= monthEnd).ToList();
@@ -342,8 +337,8 @@ namespace Carrotware.IncomeParser.Helpers {
 			int row = 1;
 
 			for (int m = 1; m <= 12; m++) {
-				var monthStart = new DateTime(year, m, 1);
-				var monthEnd = GetEndOfMonthByDate(monthStart);
+				var monthStart = ParseHelper.GetStartDateByNumber(year, m);
+				var monthEnd = ParseHelper.GetEndOfMonthByDate(monthStart);
 
 				//income for the month
 				var monthIncome = income.Where(x => x.TransactionDate >= monthStart && x.TransactionDate <= monthEnd).ToList();
@@ -424,8 +419,8 @@ namespace Carrotware.IncomeParser.Helpers {
 			int row = 1;
 
 			for (int m = 1; m <= 12; m++) {
-				var monthStart = new DateTime(year, m, 1);
-				var monthEnd = GetEndOfMonthByDate(monthStart);
+				var monthStart = ParseHelper.GetStartDateByNumber(year, m);
+				var monthEnd = ParseHelper.GetEndOfMonthByDate(monthStart);
 
 				Console.WriteLine($"\tTabulating income for {monthStart.ToString("MMMM yyyy")} ==========");
 
@@ -571,8 +566,8 @@ namespace Carrotware.IncomeParser.Helpers {
 				var colMonthIdx = colFirstIdx + m + 1;
 				var colMonth = ColNumberToLetter(colMonthIdx);
 
-				var monthStart = new DateTime(year, m, 1);
-				var monthEnd = GetEndOfMonthByDate(monthStart);
+				var monthStart = ParseHelper.GetStartDateByNumber(year, m);
+				var monthEnd = ParseHelper.GetEndOfMonthByDate(monthStart);
 
 				Console.WriteLine($"\tTabulating sales totals for {monthStart.ToString("MMMM yyyy")} ==========");
 
@@ -1232,9 +1227,9 @@ namespace Carrotware.IncomeParser.Helpers {
 				sl.SetCellStyle((subhead - 1), colA, subhead, colSubTotIdx, styleQuarterHead);
 
 				if (quarter <= 4) {
-					var qMonth = quarter * 3;
-					int qMonthDays = DateTime.DaysInMonth(year, qMonth);
-					var qEndDate = new DateTime(year, qMonth, qMonthDays);
+					var monthNbrs = CoreConfig.GetMonthsForQuarter(quarter);
+					var qMonth = monthNbrs.Max();
+					var qEndDate = ParseHelper.GetEndDateByNumber(year, qMonth);
 
 					sl.SetCellValue($"A{subhead - 1}", $"Q {quarter}");
 					sl.SetCellValue($"A{subhead}", qEndDate);

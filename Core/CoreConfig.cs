@@ -1,4 +1,5 @@
 using Carrotware.IncomeParser.Interfaces;
+using DocumentFormat.OpenXml;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,6 +55,48 @@ namespace Carrotware.IncomeParser.Core {
 
 				return _configuration;
 			}
+		}
+
+		public static string MainDocumentFolder {
+			get {
+				return Configuration["MainDocumentFolder"] ?? string.Empty;
+			}
+		}
+
+		public static List<List<string>> SecurityAliases {
+			get {
+				var securityAliases = Configuration.GetSection("SecurityAliases");
+
+				var aliasesEntries = securityAliases.Get<List<string>>();
+				var aliases = aliasesEntries?.Select(x => x.Split(',')
+								.Select(x => x.ToUpperInvariant()).ToList()).ToList() ?? new List<List<string>>();
+
+				return aliases;
+			}
+		}
+
+		public static Dictionary<string, object> TaxRatesPercent {
+			get {
+				return Configuration.GetSection("TaxRatesPercent").Get<Dictionary<string, object>>() ?? new Dictionary<string, object>();
+			}
+		}
+
+		public static List<int> GetMonthsForQuarter(int quarter) {
+			if (quarter >= 1 && quarter <= 4) {
+				var quarters = Configuration.GetSection("Quarters").GetChildren();
+				var months = quarters.FirstOrDefault(x => int.TryParse(x["Quarter"], out int q) && q == quarter);
+
+				var monthNbrs = months?.GetSection("Months").Get<List<int>>();
+
+				if (monthNbrs == null || monthNbrs.Any() == false) {
+					var startMonth = ((quarter - 1) * 3 + 1);
+					monthNbrs = Enumerable.Range(startMonth, 3).ToList();
+				}
+
+				return monthNbrs ?? new List<int>();
+			}
+
+			return new List<int>();
 		}
 
 		public static DateTime AppDateTime {
