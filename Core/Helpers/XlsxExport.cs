@@ -28,9 +28,19 @@ namespace Carrotware.IncomeParser.Helpers {
 
 		public XlsxExport(IEnumerable<IBrokerSummary> brokers) {
 			this.BrokerSummaries = brokers;
+
+			var year = brokers.Max(x => x.Year);
+			if (year <= ParseHelper.MIN_YEAR || brokers.Any() == false) {
+				year = DateTime.Now.Year;
+			}
+			this.Year = year;
+
+			this.TaxYearData = TaxYearData.Load(year);
 		}
 
 		public IEnumerable<IBrokerSummary> BrokerSummaries { get; set; } = new List<IBrokerSummary>();
+
+		public TaxYearData TaxYearData { get; set; } = new TaxYearData();
 
 		private const string Sheet_Washed = "Washed";
 		private const string Sheet_Unwashed = "Unwashed";
@@ -132,11 +142,7 @@ namespace Carrotware.IncomeParser.Helpers {
 		}
 
 		public void GenerateReport() {
-			var year = this.BrokerSummaries.Max(x => x.Year);
-			if (year <= ParseHelper.MIN_YEAR) {
-				year = DateTime.Now.Year;
-			}
-			this.Year = year;
+			var year = this.Year;
 
 			string settingFolder = CoreConfig.MainDocumentFolder;
 			//string fileName = Path.Join(settingFolder, ParserWorkerBee.OutputReportExcel);
@@ -794,7 +800,7 @@ namespace Carrotware.IncomeParser.Helpers {
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
-			var taxYearData = TaxYearData.Load(year);
+			var taxYearData = this.TaxYearData;
 
 			if (taxYearData == null
 						|| taxYearData.Quarters.Count == 0
@@ -1179,6 +1185,14 @@ namespace Carrotware.IncomeParser.Helpers {
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
+			var taxYearData = this.TaxYearData;
+
+			if (taxYearData == null
+						|| taxYearData.Quarters.Count == 0
+						|| taxYearData.TaxRates.Count == 0) {
+				return sl;
+			}
+
 			var stylePlain = StylePlain(sl);
 
 			var stylePlainAttention = StylePlain(sl);
@@ -1227,9 +1241,8 @@ namespace Carrotware.IncomeParser.Helpers {
 				sl.SetCellStyle((subhead - 1), colA, subhead, colSubTotIdx, styleQuarterHead);
 
 				if (quarter <= 4) {
-					var monthNbrs = CoreConfig.GetMonthsForQuarter(quarter);
-					var qMonth = monthNbrs.Max();
-					var qEndDate = ParseHelper.GetEndDateByNumber(year, qMonth);
+					var quarterInfo = taxYearData.Quarters.Where(x => x.Quarter == quarter).FirstOrDefault();
+					var qEndDate = quarterInfo?.QuarterEndDate ?? DateTime.MinValue;
 
 					sl.SetCellValue($"A{subhead - 1}", $"Q {quarter}");
 					sl.SetCellValue($"A{subhead}", qEndDate);
@@ -1267,7 +1280,7 @@ namespace Carrotware.IncomeParser.Helpers {
 				foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
 					sl.SetCellValue((subhead - 1), colSumIdx, b.BrokerIdentity);
 					sl.SetCellValue(subhead, colSumIdx, b.AccountIdentity);
-					var totals = b.QuarterRows.Where(x => x.Quarter == quarter).FirstOrDefault();
+					var quarterRow = b.QuarterRows.Where(x => x.Quarter == quarter).FirstOrDefault();
 
 					var colSum = ColNumberToLetter(colSumIdx);
 					string formulaSubtotalCol = $"=SUM({colSum}{subhead + 1}:{colSum}{subhead + 4})";
@@ -1290,17 +1303,21 @@ namespace Carrotware.IncomeParser.Helpers {
 						}
 					}
 
-					if (totals == null) {
-						totals = new QuarterRow();
+					if (quarterRow == null) {
+						if (quarter <= 4) {
+							quarterRow = new QuarterRow(quarter, taxYearData);
+						} else {
+							quarterRow = new QuarterRow();
+						}
 					}
 
-					if (totals != null && quarter <= 4) {
-						if (totals.QuarterStartDate != DateTime.MinValue) {
-							if (totals.QuarterStartDate > DateTime.Now.Date) {
+					if (quarterRow != null && quarter <= 4) {
+						if (quarterRow.QuarterStartDate != DateTime.MinValue) {
+							if (quarterRow.QuarterStartDate > DateTime.Now.Date) {
 								sl.SetCellValue($"A{subhead + 6}", "* Future Dates Out Of Range");
 								sl.SetCellStyle($"A{subhead + 6}", stylePlainAttention);
 							}
-							if (totals.QuarterStartDate <= DateTime.Now.Date && totals.QuarterEndDate >= DateTime.Now.Date) {
+							if (quarterRow.QuarterStartDate <= DateTime.Now.Date && quarterRow.QuarterEndDate >= DateTime.Now.Date) {
 								sl.SetCellValue($"A{subhead + 6}", "* Quarter Not Closed");
 								sl.SetCellStyle($"A{subhead + 6}", stylePlainAttention);
 							}
@@ -1308,7 +1325,7 @@ namespace Carrotware.IncomeParser.Helpers {
 
 						var rowIncome = subhead + 1;
 						foreach (var inc in _incomeTypes) {
-							var income = totals.QuarterlyTotalRows.Where(x => x.IncomeType == inc).FirstOrDefault();
+							var income = quarterRow.QuarterlyTotalRows.Where(x => x.IncomeType == inc).FirstOrDefault();
 							sl.SetCellStyle(rowIncome, colSumIdx, stylePlain);
 							sl.SetCellStyle(rowIncome, colSumIdx, styleMoney);
 							if (income != null) {
@@ -1326,7 +1343,7 @@ namespace Carrotware.IncomeParser.Helpers {
 							rowIncome++;
 						}
 
-						if (totals.QuarterlyTotalRows.Any(x => x.Adjustment != 0)) {
+						if (quarterRow.QuarterlyTotalRows.Any(x => x.Adjustment != 0)) {
 							if (isWashedSheet) {
 								sl.SetCellValue($"A{subhead + 6}", "* Wash sales reflected in above totals");
 							} else {
@@ -1381,7 +1398,7 @@ namespace Carrotware.IncomeParser.Helpers {
 				throw new ArgumentException("Column number must be greater than zero.", nameof(colIdx));
 			}
 
-			StringBuilder columnName = new StringBuilder();
+			var columnName = new StringBuilder();
 			while (colIdx > 0) {
 				int modulo = (colIdx - 1) % 26;
 				columnName.Insert(0, (char)('A' + modulo));

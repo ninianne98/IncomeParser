@@ -1,6 +1,6 @@
 # Income Parser
 
-Income Parser is a C# .NET 8.0 tool designed to aggregate brokerage transaction data, identify potential wash sales across multiple accounts, and generate detailed financial reports for tax research and discovery.
+Income Parser is a C# .NET 10.0 tool designed to aggregate brokerage transaction data, identify potential wash sales across multiple accounts, and generate detailed financial reports for tax research and discovery.
 
 ## Use Cases
 
@@ -21,7 +21,7 @@ Income Parser is a C# .NET 8.0 tool designed to aggregate brokerage transaction 
 ## Getting Started
 
 ### Prerequisites
-*   [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+*   [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ### Installation
 1. Clone the repository.

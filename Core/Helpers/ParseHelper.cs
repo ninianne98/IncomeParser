@@ -311,6 +311,10 @@ namespace Carrotware.IncomeParser.Helpers {
 			}
 		}
 
+		public static string ToYMDString(this DateTime date) {
+			return date.ToString("yyyy-MM-dd");
+		}
+
 		public static DateTime GetStartDateByNumber(int year, int month) {
 			return new DateTime(year, month, 1);
 		}

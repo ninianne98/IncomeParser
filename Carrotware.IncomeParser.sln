@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.12.35527.113
+# Visual Studio Version 18
+VisualStudioVersion = 18.6.11822.322 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carrotware.IncomeParser.Cli", "Main\Carrotware.IncomeParser.Cli.csproj", "{B065C03F-6EAC-02CB-BAB4-32EDBFE965D6}"
 EndProject

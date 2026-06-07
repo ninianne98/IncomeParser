@@ -7,22 +7,41 @@ namespace Carrotware.IncomeParser.Entities {
 
 		public QuarterRow() {
 			this.Quarter = 0;
-			this.QuarterlyTotalRows = new List<QuarterlyTotalRow>();
+			this.Year = ParseHelper.MIN_YEAR;
 		}
 
-		public QuarterRow(int quarter, int year) : this() {
+		public QuarterRow(int quarter, int year) {
 			this.Quarter = quarter;
 			this.Year = year;
 
-			var monthInt = CoreConfig.GetMonthsForQuarter(quarter);
+			SetDates();
+		}
+
+		public QuarterRow(int quarter, TaxYearData taxData) {
+			var quarterInfo = taxData.Quarters.Where(x => x.Quarter == quarter).FirstOrDefault();
+
+			if (quarterInfo != null) {
+				this.Quarter = quarterInfo.Quarter;
+				this.Year = quarterInfo.Year;
+
+				this.QuarterStartDate = quarterInfo.QuarterStartDate;
+				this.QuarterEndDate = quarterInfo.QuarterEndDate;
+			} else {
+				// fallback
+				this.Quarter = quarter;
+				this.Year = taxData.Year;
+
+				SetDates();
+			}
+		}
+
+		private void SetDates() {
+			var monthInt = CoreConfig.GetMonthsForQuarter(this.Quarter);
 			var startMonth = monthInt.Min();
 			var endMonth = monthInt.Max();
 
-			this.QuarterStartDate = ParseHelper.GetStartDateByNumber(year, startMonth);
-			this.QuarterEndDate = ParseHelper.GetEndDateByNumber(year, endMonth);
-
-			this.QuarterlyTotalRows = new List<QuarterlyTotalRow>();
-			this.WashMatches = new List<WashMatch>();
+			this.QuarterStartDate = ParseHelper.GetStartDateByNumber(this.Year, startMonth);
+			this.QuarterEndDate = ParseHelper.GetEndDateByNumber(this.Year, endMonth);
 		}
 
 		public int Quarter { get; set; } = 1;

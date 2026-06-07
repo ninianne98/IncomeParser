@@ -186,8 +186,10 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 			var year = broker.Year;
 
+			var taxData = TaxYearData.Load(year);
+
 			for (int q = 1; q <= 4; q++) {
-				var quarter = new QuarterRow(q, year);
+				var quarter = new QuarterRow(q, taxData);
 
 				var startDate = quarter.QuarterStartDate;
 				var endDate = quarter.QuarterEndDate;

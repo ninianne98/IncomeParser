@@ -37,19 +37,10 @@ namespace Carrotware.IncomeParser.Entities {
 		public void Run() {
 			var year = this.Year;
 
-			bool hasChanges = false;
-
 			var taxData = TaxYearData.Load(year);
-			string settingFolder = CoreConfig.MainDocumentFolder;
-			var filePath = Directory.GetFiles(settingFolder, $"TaxYear*{year}.json").FirstOrDefault();
+			var filePath = taxData.FileName;
 
-			hasChanges = string.IsNullOrEmpty(filePath);
-
-			if (string.IsNullOrEmpty(filePath)) {
-				filePath = Path.Combine(settingFolder, $"TaxYear_{year}.json");
-			}
-
-			hasChanges = File.Exists(filePath) == false;
+			var hasChanges = File.Exists(filePath) == false;
 
 			if (taxData == null) {
 				taxData = new TaxYearData(year);
@@ -249,38 +240,53 @@ namespace Carrotware.IncomeParser.Entities {
 
 		public TaxYearData() {
 			this.Year = ParseHelper.MIN_YEAR;
-			LoadQuarters();
-			LoadRates();
+			StdLoads();
 		}
 
 		public TaxYearData(int year) {
 			this.Year = year;
-			LoadQuarters();
-			LoadRates();
+			StdLoads();
 		}
+
+		[JsonIgnore]
+		public string FileName { get; protected set; } = string.Empty;
 
 		public static TaxYearData Load(int year) {
 			if (year <= ParseHelper.MIN_YEAR) {
 				year = DateTime.Now.Year;
 			}
 
-			var taxData = new TaxYearData(year);
+			TaxYearData taxData;
 
-			string settingFolder = CoreConfig.MainDocumentFolder;
-			var filePath = Directory.GetFiles(settingFolder, $"TaxYear*{year}.json").FirstOrDefault();
+			var filePath = GetFilename(year);
 
-			if (string.IsNullOrEmpty(filePath) == false && File.Exists(filePath)) {
+			if (File.Exists(filePath)) {
 				var jsonString = File.ReadAllText(filePath);
-				taxData = JsonSerializer.Deserialize<TaxYearData>(jsonString);
-			}
-
-			if (taxData == null) {
+				var td = JsonSerializer.Deserialize<TaxYearData>(jsonString);
+				taxData = td != null ? td : new TaxYearData(year);
+			} else {
 				taxData = new TaxYearData(year);
 			}
 
+			taxData.FileName = filePath;
 			taxData.LoadQuarters();
 
 			return taxData;
+		}
+
+		protected void StdLoads() {
+			AssignFilename();
+			LoadQuarters();
+			LoadRates();
+		}
+
+		protected void AssignFilename() {
+			this.FileName = GetFilename(this.Year);
+		}
+
+		public static string GetFilename(int year) {
+			string settingFolder = CoreConfig.MainDocumentFolder;
+			return Path.Combine(settingFolder, $"TaxYear_{year}.json");
 		}
 
 		protected void LoadQuarters() {
@@ -422,8 +428,8 @@ namespace Carrotware.IncomeParser.Entities {
 				var startD = ParseHelper.GetStartDateByNumber(this.Year, startMonth);
 				var endD = ParseHelper.GetEndDateByNumber(this.Year, endMonth);
 
-				this.StartDate = startD.ToString("yyyy-MM-dd");
-				this.EndDate = endD.ToString("yyyy-MM-dd");
+				this.StartDate = startD.ToYMDString();
+				this.EndDate = endD.ToYMDString();
 			}
 		}
 
@@ -432,7 +438,7 @@ namespace Carrotware.IncomeParser.Entities {
 			var date = ParseDateString(dateInput);
 
 			if (date != DateTime.MinValue) {
-				this.PaymentDate = date.ToString("yyyy-MM-dd");
+				this.PaymentDate = date.ToYMDString();
 			} else {
 				this.PaymentDate = string.Empty;
 			}
@@ -444,7 +450,7 @@ namespace Carrotware.IncomeParser.Entities {
 			var date = ParseDateString(dateInput);
 
 			if (date != DateTime.MinValue) {
-				this.PaymentDate = date.ToString("yyyy-MM-dd");
+				this.PaymentDate = date.ToYMDString();
 				return date;
 			} else {
 				this.PaymentDate = string.Empty;
@@ -458,7 +464,7 @@ namespace Carrotware.IncomeParser.Entities {
 			if (string.IsNullOrEmpty(dateInput) == false) {
 				DateTime.TryParse(dateInput, out date);
 				if (date != DateTime.MinValue) {
-					this.PaymentDate = date.ToString("yyyy-MM-dd");
+					this.PaymentDate = date.ToYMDString();
 				}
 			}
 
