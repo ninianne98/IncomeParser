@@ -32,7 +32,7 @@ namespace Carrotware.IncomeParser {
 							.Select(x => new FileInfo(x))
 							.Where(x => x.Name.StartsWith("Statement_") == false && x.DirectoryName != settingFolder).ToList();
 
-			CoreConfig.Logger.LogInformation("Discovered {Count} files matching criteria for processing.", files.Count);
+			CoreConfig.Logger.LogInformation($"Discovered {files.Count} files matching criteria for processing.");
 
 			foreach (var file in files) {
 				try {
@@ -49,30 +49,21 @@ namespace Carrotware.IncomeParser {
 				}
 			}
 
-			CoreConfig.Logger.LogInformation("Successfully parsed {Count} documents. Proceeding to report generation.", documents.Count);
+			CoreConfig.Logger.LogInformation($"Successfully parsed {documents.Count} documents. Proceeding to report generation.");
 			var brokers = factory.LoadBrokerDocuments(documents);
 
-			Thread.Sleep(250);
-
-			var year = brokers.Max(x => x.Year);
-			//string fileNameTxt = Path.Join(settingFolder, OutputReport);
-			string fileNameTxt = Path.Join(settingFolder, CoreConfig.OutputReportYear(year));
-			CoreConfig.Logger.LogInformation("Writing text report to: {File}", fileNameTxt);
-			File.WriteAllText(fileNameTxt, string.Empty);
-
-			Thread.Sleep(250);
-
-			factory.PrintOutput(brokers);
-
 			Thread.Sleep(500);
-
 			CoreConfig.PrintDisclaimer();
 			CoreConfig.Logger.LogInformation("Collecting Tax Data...");
 			var tax = new TaxDataCollector(brokers);
 			tax.Run();
 
+			Thread.Sleep(250);
+			factory.PrintOutput();
+			Thread.Sleep(250);
+
 			CoreConfig.Logger.LogInformation("Generating XLSX report...");
-			var report = new XlsxExport(brokers);
+			var report = new XlsxExport(tax);
 			report.GenerateReport();
 
 			CoreConfig.Logger.LogInformation("ParserWorkerBee process completed successfully.");

@@ -45,7 +45,7 @@ namespace Carrotware.IncomeParser.Entities {
 		}
 
 		public int Quarter { get; set; } = 1;
-		public int Year { get; set; } = DateTime.Now.Year;
+		public int Year { get; set; } = ParseHelper.MIN_YEAR;
 
 		public DateTime QuarterStartDate { get; set; } = DateTime.MinValue;
 		public DateTime QuarterEndDate { get; set; } = DateTime.MinValue;

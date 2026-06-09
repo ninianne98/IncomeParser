@@ -30,22 +30,26 @@ namespace Carrotware.IncomeParser.Entities {
 			this.Year = year;
 		}
 
-		public int Year { get; set; } = DateTime.Now.Year;
+		public int Year { get; set; } = ParseHelper.MIN_YEAR;
 
 		public IEnumerable<IBrokerSummary> BrokerSummaries { get; set; } = new List<IBrokerSummary>();
+
+		public TaxYearData TaxYearData { get; set; } = new TaxYearData();
 
 		public void Run() {
 			var year = this.Year;
 
-			var taxData = TaxYearData.Load(year);
-			var filePath = taxData.FileName;
+			var taxYearData = TaxYearData.Load(year);
+			var tydFilePath = taxYearData.FileName;
 
-			var hasChanges = File.Exists(filePath) == false;
+			var hasChanges = File.Exists(tydFilePath) == false;
 
-			if (taxData == null) {
-				taxData = new TaxYearData(year);
+			if (taxYearData == null) {
+				taxYearData = new TaxYearData(year);
 				hasChanges = true;
 			}
+
+			this.TaxYearData = taxYearData;
 
 			var rateDict = new Dictionary<string, IncomeType>();
 			foreach (var et in Enum.GetValues<IncomeType>().Where(x => x != IncomeType.Unknown)) {
@@ -82,7 +86,7 @@ namespace Carrotware.IncomeParser.Entities {
 				Console.WriteLine($"========= Tax Year: {this.Year} =========");
 				Console.ResetColor();
 
-				var sortedQuarters = taxData.Quarters.OrderBy(x => x.Quarter).ToList();
+				var sortedQuarters = taxYearData.Quarters.OrderBy(x => x.Quarter).ToList();
 
 				Console.WriteLine("\n   Quarters ------------------------");
 				foreach (var q in sortedQuarters) {
@@ -92,7 +96,7 @@ namespace Carrotware.IncomeParser.Entities {
 				}
 
 				Console.WriteLine("\n   Tax Rates ------------------------");
-				foreach (var tri in taxData.TaxRates) {
+				foreach (var tri in taxYearData.TaxRates) {
 					var menuKey = IncomeTypeMenu(tri.IncomeType);
 					Console.WriteLine($"\t[ {menuKey} ]  {tri.IncomeType.GetDescription()}: {tri.Percentage:P}");
 				}
@@ -115,14 +119,14 @@ namespace Carrotware.IncomeParser.Entities {
 					keepGoing = false;
 				} else if (input == "W" && input.Length == 1) {
 					//hasChanges = true;
-					SaveFile(filePath, taxData);
+					taxYearData.Save();
 				} else if (inRet && inputInt >= 1 && inputInt <= 4) {
-					var item = taxData.Quarters.Where(x => x.Quarter == inputInt).First();
+					var item = taxYearData.Quarters.Where(x => x.Quarter == inputInt).First();
 					hasChanges |= PromptUpdateQuarter(item);
 				} else if (string.IsNullOrWhiteSpace(input) == false && input.Length == 1
 									&& rateDict.ContainsKey(input)) {
 					var selRate = rateDict[input];
-					var item = taxData.TaxRates.Where(x => x.IncomeType == selRate).First();
+					var item = taxYearData.TaxRates.Where(x => x.IncomeType == selRate).First();
 					hasChanges |= PromptUpdateTaxRate(item);
 				} else {
 					Console.ForegroundColor = ConsoleColor.Yellow;
@@ -132,32 +136,11 @@ namespace Carrotware.IncomeParser.Entities {
 			}
 
 			// if changed or new file, save!
-			if (hasChanges || File.Exists(filePath) == false) {
-				SaveFile(filePath, taxData);
+			if (hasChanges || File.Exists(tydFilePath) == false) {
+				taxYearData.Save();
 			}
 
 			Console.WriteLine("\n\n");
-		}
-
-		protected void SaveFile(string filePath, TaxYearData taxData) {
-			var exists = File.Exists(filePath);
-
-			if (exists) {
-				var backupPath = $"{filePath}.{DateTime.Now:yyyyMMddHHmmss}.bak";
-				File.Copy(filePath, backupPath, true);
-			}
-
-			var options = new JsonSerializerOptions { WriteIndented = true };
-			File.WriteAllText(filePath, JsonSerializer.Serialize(taxData, options));
-
-			if (exists) {
-				Console.ForegroundColor = ConsoleColor.Blue;
-				Console.WriteLine($"\n[SUCCESS] Backup created and {Path.GetFileName(filePath)} updated.\n\n");
-			} else {
-				Console.ForegroundColor = ConsoleColor.Gray;
-				Console.WriteLine($"\n[SUCCESS] Config {Path.GetFileName(filePath)} created.\n\n");
-			}
-			Console.ResetColor();
 		}
 
 		private bool PromptUpdateTaxRate(TaxRateInfo info) {
@@ -256,14 +239,14 @@ namespace Carrotware.IncomeParser.Entities {
 				year = DateTime.Now.Year;
 			}
 
-			TaxYearData taxData;
-
 			var filePath = GetFilename(year);
+
+			TaxYearData taxData;
 
 			if (File.Exists(filePath)) {
 				var jsonString = File.ReadAllText(filePath);
-				var td = JsonSerializer.Deserialize<TaxYearData>(jsonString);
-				taxData = td != null ? td : new TaxYearData(year);
+				var tyd = JsonSerializer.Deserialize<TaxYearData>(jsonString);
+				taxData = tyd != null ? tyd : new TaxYearData(year);
 			} else {
 				taxData = new TaxYearData(year);
 			}
@@ -274,10 +257,55 @@ namespace Carrotware.IncomeParser.Entities {
 			return taxData;
 		}
 
+		internal void Create() {
+			var filePath = this.FileName;
+
+			var exists = File.Exists(filePath);
+
+			if (!exists) {
+				var options = new JsonSerializerOptions { WriteIndented = true };
+				File.WriteAllText(filePath, JsonSerializer.Serialize(this, options));
+
+				Console.ForegroundColor = ConsoleColor.Gray;
+				Console.WriteLine($"\n[SUCCESS] Config {Path.GetFileName(filePath)} created.\n\n");
+				Console.ResetColor();
+			}
+		}
+
+		internal void Save() {
+			var filePath = this.FileName;
+
+			var exists = File.Exists(filePath);
+			bool createBackup = false;
+
+			if (exists) {
+				var lastWrite = File.GetCreationTimeUtc(filePath);
+				createBackup = (DateTime.UtcNow.Subtract(lastWrite).TotalMinutes > 2);
+
+				if (createBackup) {
+					var backupPath = $"{filePath}.{DateTime.Now:yyyyMMddHHmmss}.bak";
+					File.Copy(filePath, backupPath, true);
+				}
+			}
+
+			var options = new JsonSerializerOptions { WriteIndented = true };
+			File.WriteAllText(filePath, JsonSerializer.Serialize(this, options));
+
+			if (exists) {
+				Console.ForegroundColor = ConsoleColor.Blue;
+				string msg = createBackup ? "backup created and " : string.Empty;
+				Console.WriteLine($"\n[SUCCESS] Config {msg}{Path.GetFileName(filePath)} updated.\n\n");
+			} else {
+				Console.ForegroundColor = ConsoleColor.Gray;
+				Console.WriteLine($"\n[SUCCESS] Config {Path.GetFileName(filePath)} created.\n\n");
+			}
+			Console.ResetColor();
+		}
+
 		protected void StdLoads() {
-			AssignFilename();
 			LoadQuarters();
 			LoadRates();
+			AssignFilename();
 		}
 
 		protected void AssignFilename() {
@@ -352,7 +380,7 @@ namespace Carrotware.IncomeParser.Entities {
 			}
 		}
 
-		public int Year { get; set; } = DateTime.Now.Year;
+		public int Year { get; set; } = ParseHelper.MIN_YEAR;
 
 		public List<QuarterInfo> Quarters { get; set; } = new List<QuarterInfo>();
 

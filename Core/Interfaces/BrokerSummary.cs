@@ -36,7 +36,7 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 		public string AccountIdentity { get; set; } = string.Empty;
 
-		public int Year { get; set; } = DateTime.Now.Year;
+		public int Year { get; set; } = ParseHelper.MIN_YEAR;
 
 		public decimal GrandTotal {
 			get {

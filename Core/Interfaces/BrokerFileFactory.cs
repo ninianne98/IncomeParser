@@ -1,6 +1,7 @@
 ﻿using Carrotware.IncomeParser.Core;
 using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Helpers;
+using Microsoft.Extensions.Logging;
 
 /*
 * Carrotware Income Parser
@@ -22,10 +23,20 @@ namespace Carrotware.IncomeParser.Interfaces {
 		public BrokerFileFactory() {
 		}
 
-		public int Year { get; set; } = DateTime.Now.Year;
+		public int Year { get; set; } = ParseHelper.MIN_YEAR;
 
-		protected void SetTextReportFile(string fileName) {
-			_rptFileNameTxt = fileName;
+		public TaxYearData TaxYearData { get; set; } = new TaxYearData();
+
+		public List<IBrokerSummary> BrokerSummaries = new List<IBrokerSummary>();
+
+		protected string GetTextReportFilename() {
+			if (string.IsNullOrEmpty(_rptFileNameTxt)) {
+				string settingFolder = CoreConfig.MainDocumentFolder;
+				string fileNameTxt = Path.Join(settingFolder, CoreConfig.OutputReportYear(this.Year));
+				_rptFileNameTxt = fileNameTxt;
+			}
+
+			return _rptFileNameTxt;
 		}
 
 		protected void ConsoleWriter() {
@@ -35,14 +46,16 @@ namespace Carrotware.IncomeParser.Interfaces {
 		protected void ConsoleWriter(string data) {
 			Console.WriteLine(data);
 
-			data.WriteLineFile(_rptFileNameTxt);
+			var rptFilename = GetTextReportFilename();
+
+			data.WriteLineFile(rptFilename);
 		}
 
-		private List<IBrokerSummary?> _brokers = new List<IBrokerSummary?>();
+		private List<IBrokerSummary>? _brokerClasses = new List<IBrokerSummary>();
 
-		public List<IBrokerSummary?> GetBrokerClasses() {
-			if (_brokers == null || _brokers.Count <= 0) {
-				_brokers = new List<IBrokerSummary?>();
+		public List<IBrokerSummary> GetBrokerClasses() {
+			if (_brokerClasses == null || _brokerClasses.Count <= 0) {
+				_brokerClasses = new List<IBrokerSummary>();
 
 				var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 				var brokerType = typeof(IBrokerSummary);
@@ -56,12 +69,15 @@ namespace Carrotware.IncomeParser.Interfaces {
 									.Union(brokerTypes)
 									.ToList();
 
-				var instances = implementations.Select(x => Activator.CreateInstance(x)).ToList();
+				var actObjects = implementations.Select(x => Activator.CreateInstance(x))
+												.Where(x => x != null && x is IBrokerSummary);
 
-				_brokers = instances.Where(x => x != null).Select(x => (IBrokerSummary?)x).ToList();
+				var instances = actObjects.Where(x => x != null).Select(x => (IBrokerSummary)x);
+
+				_brokerClasses = instances.Where(x => x != null).ToList();
 			}
 
-			return _brokers;
+			return _brokerClasses;
 		}
 
 		public IFileCoreData? GenerateFileData(FileInfo file) {
@@ -122,26 +138,45 @@ namespace Carrotware.IncomeParser.Interfaces {
 
 			this.Year = year;
 
-			return brokers.OrderBy(x => x.AccountIdentity).OrderBy(x => x.BrokerIdentity).ToList();
+			LoadTaxData();
+
+			brokers = brokers.OrderBy(x => x.AccountIdentity).OrderBy(x => x.BrokerIdentity).ToList();
+			this.BrokerSummaries = brokers;
+
+			return brokers;
 		}
 
-		public void PrintOutput(List<IFileCoreData> documents, List<IBrokerSummary> brokers) {
+		public void PrintOutput(List<IFileCoreData> documents) {
 			_documents = documents;
 
-			PrintOutput(brokers);
+			PrintOutput();
 		}
 
-		public void PrintOutput(List<IBrokerSummary> brokers) {
+		protected void LoadTaxData() {
+			if (this.TaxYearData.Year != this.Year) {
+				var taxYearData = TaxYearData.Load(this.Year);
+				taxYearData.Create();
+				this.TaxYearData = taxYearData;
+			}
+		}
+
+		public void PrintOutput() {
+			var brokers = this.BrokerSummaries;
+
 			var year = brokers.Max(x => x.Year);
 			if (year <= ParseHelper.MIN_YEAR) {
 				year = DateTime.Now.Year;
 			}
 			this.Year = year;
 
-			string settingFolder = CoreConfig.MainDocumentFolder;
+			LoadTaxData();
 
-			string fileNameTxt = Path.Join(settingFolder, CoreConfig.OutputReportYear(this.Year));
-			SetTextReportFile(fileNameTxt);
+			var rptFilename = GetTextReportFilename();
+
+			if (File.Exists(rptFilename) == false) {
+				CoreConfig.Logger.LogInformation($"Writing text report to: {rptFilename}");
+				File.WriteAllText(rptFilename, string.Empty);
+			}
 
 			foreach (var b in brokers.OrderBy(x => x.AccountIdentity).OrderBy(x => x.BrokerIdentity).OrderByDescending(x => x.GrandTotal)) {
 				Console.WriteLine("=====================================================");
@@ -150,9 +185,16 @@ namespace Carrotware.IncomeParser.Interfaces {
 		}
 
 		protected void PrintOutput(IBrokerSummary broker) {
-			string settingFolder = CoreConfig.MainDocumentFolder;
+			LoadTaxData();
 
 			ConsoleWriter("-----------------------------------------------------------------------");
+
+			var taxYearData = this.TaxYearData;
+			var year = this.Year;
+
+			if (broker.Year != this.Year) {
+				return;
+			}
 
 			var aliases = CoreConfig.SecurityAliases;
 
@@ -184,12 +226,8 @@ namespace Carrotware.IncomeParser.Interfaces {
 			ConsoleWriter($"Total LTG Distribution and Gains/Losses:\t{ltg:C2} ");
 			ConsoleWriter($"Total STG Distribution and Gains/Losses:\t{stg:C2} ");
 
-			var year = broker.Year;
-
-			var taxData = TaxYearData.Load(year);
-
 			for (int q = 1; q <= 4; q++) {
-				var quarter = new QuarterRow(q, taxData);
+				var quarter = new QuarterRow(q, taxYearData);
 
 				var startDate = quarter.QuarterStartDate;
 				var endDate = quarter.QuarterEndDate;

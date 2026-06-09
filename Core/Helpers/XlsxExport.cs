@@ -26,17 +26,22 @@ namespace Carrotware.IncomeParser.Helpers {
 
 		public XlsxExport() { }
 
-		public XlsxExport(IEnumerable<IBrokerSummary> brokers) {
-			this.BrokerSummaries = brokers;
+		public XlsxExport(TaxDataCollector tax) {
+			var brokers = tax.BrokerSummaries;
+			var taxYearData = tax.TaxYearData;
+			var year = tax.Year;
 
-			var year = brokers.Max(x => x.Year);
-			if (year <= ParseHelper.MIN_YEAR || brokers.Any() == false) {
-				year = DateTime.Now.Year;
-			}
+			this.BrokerSummaries = brokers.Where(x => x.Year == year);
 			this.Year = year;
 
-			this.TaxYearData = TaxYearData.Load(year);
+			if (taxYearData != null && taxYearData.Year == year) {
+				this.TaxYearData = taxYearData;
+			} else {
+				this.TaxYearData = TaxYearData.Load(year);
+			}
 		}
+
+		public int Year { get; set; } = ParseHelper.MIN_YEAR;
 
 		public IEnumerable<IBrokerSummary> BrokerSummaries { get; set; } = new List<IBrokerSummary>();
 
@@ -72,8 +77,6 @@ namespace Carrotware.IncomeParser.Helpers {
 		private Color _colorLong = ColorTranslator.FromHtml("#E2F7D3");
 
 		private IncomeType[] _incomeTypes = [IncomeType.LongTermCG, IncomeType.ShortTermGG, IncomeType.Dividend, IncomeType.Interest];
-
-		public int Year { get; set; } = DateTime.Now.Year;
 
 		public SLStyle StylePlain(SLDocument sl) {
 			var style = sl.CreateStyle();
@@ -145,8 +148,7 @@ namespace Carrotware.IncomeParser.Helpers {
 			var year = this.Year;
 
 			string settingFolder = CoreConfig.MainDocumentFolder;
-			//string fileName = Path.Join(settingFolder, ParserWorkerBee.OutputReportExcel);
-			string fileName = Path.Join(settingFolder, CoreConfig.OutputReportExcelYear(year));
+			string xlsxFileName = Path.Join(settingFolder, CoreConfig.OutputReportExcelYear(year));
 
 			using (var ms = new MemoryStream()) {
 				using (var sl = new SLDocument()) {
@@ -185,7 +187,7 @@ namespace Carrotware.IncomeParser.Helpers {
 				}
 
 				ms.Position = 0;
-				using (var fs = new FileStream(fileName, FileMode.Create, FileAccess.Write)) {
+				using (var fs = new FileStream(xlsxFileName, FileMode.Create, FileAccess.Write)) {
 					ms.CopyTo(fs);
 				}
 			}

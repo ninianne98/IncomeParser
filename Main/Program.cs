@@ -29,9 +29,13 @@ internal class Program {
 
 		var bee = new ParserWorkerBee();
 		bee.RunParser();
+		Thread.Sleep(250);
 
+		Console.ForegroundColor = ConsoleColor.Green;
+		Console.WriteLine();
 		Console.WriteLine("=====================================================");
 		Console.WriteLine("                       DONE");
+		Console.ResetColor();
 		Thread.Sleep(500);
 
 		CoreConfig.PrintDisclaimer();
