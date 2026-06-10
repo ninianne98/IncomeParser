@@ -1,6 +1,7 @@
 ﻿using Carrotware.IncomeParser.Core;
 using Carrotware.IncomeParser.Entities;
 using Carrotware.IncomeParser.Interfaces;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Drawing.Charts;
 using DocumentFormat.OpenXml.Spreadsheet;
 using SpreadsheetLight;
@@ -53,6 +54,7 @@ namespace Carrotware.IncomeParser.Helpers {
 		private const string Sheet_Sales = "Sales";
 		private const string Sheet_SalesTotal = "Sales Total";
 		private const string Sheet_Income = "Income";
+		private const string Sheet_IncomePie = "Income Pie";
 		private const string Sheet_IncomeTotal = "Income Totals";
 
 		private int _maxIncomeRows = 72; // max rows on income (4 quarters + year)
@@ -77,6 +79,10 @@ namespace Carrotware.IncomeParser.Helpers {
 		private Color _colorLong = ColorTranslator.FromHtml("#E2F7D3");
 
 		private IncomeType[] _incomeTypes = [IncomeType.LongTermCG, IncomeType.ShortTermGG, IncomeType.Dividend, IncomeType.Interest];
+
+		protected Color[] GetStandardColors() {
+			return new Color[] { _color2, _color4, _color6, _color1, _color3, _color5 };
+		}
 
 		public SLStyle StylePlain(SLDocument sl) {
 			var style = sl.CreateStyle();
@@ -160,6 +166,7 @@ namespace Carrotware.IncomeParser.Helpers {
 					sl.AddWorksheet(Sheet_Sales);
 					sl.AddWorksheet(Sheet_SalesTotal);
 					sl.AddWorksheet(Sheet_Income);
+					sl.AddWorksheet(Sheet_IncomePie);
 					sl.AddWorksheet(Sheet_IncomeTotal);
 
 					Console.WriteLine("Creating quarterly reports ============");
@@ -178,6 +185,8 @@ namespace Carrotware.IncomeParser.Helpers {
 
 					Console.WriteLine("Creating income history ==================");
 					ReportIncome(sl);
+					Console.WriteLine("Creating income pie chart ==================");
+					ReportIncomePieChart(sl);
 					Console.WriteLine("Creating income totals ==================");
 					ReportIncomeTotal(sl);
 
@@ -199,7 +208,7 @@ namespace Carrotware.IncomeParser.Helpers {
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
-			int row = 0;
+			int row = 1;
 
 			var stylePlain = StylePlain(sl);
 			var styleMainHead = StyleH2(sl);
@@ -219,17 +228,15 @@ namespace Carrotware.IncomeParser.Helpers {
 			var colMax = 'N';
 			var colMaxIdx = ColLetterToNumber(colMax);
 
-			var income = new List<TransactionDetail>();
+			var income = brokers
+				.SelectMany(b => b.QuarterRows)
+				.SelectMany(q => q.IncomeDetails)
+				.ToList();
 
-			foreach (var b in brokers) {
-				Console.WriteLine($"\tCreating income totals {b.AccountIdentity} ==========");
+			int lastRow = 2 + brokerCount;
 
-				foreach (var q in b.QuarterRows) {
-					income = income.Union(q.IncomeDetails).ToList();
-				}
-			}
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{lastRow + 3}", stylePlain);
 
-			row = 1;
 			sl.SetCellValue($"A{row}", "Income By Month");
 			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
 			SLD_ResizeRow(sl, row, 20);
@@ -252,6 +259,7 @@ namespace Carrotware.IncomeParser.Helpers {
 				row++;
 			}
 
+			// months as columns
 			for (int m = 1; m <= 12; m++) {
 				row = 2;
 				var colMonthIdx = colFirstIdx + m + 1;
@@ -262,11 +270,10 @@ namespace Carrotware.IncomeParser.Helpers {
 
 				//income for the month
 				var monthIncome = income.Where(x => x.TransactionDate >= monthStart && x.TransactionDate <= monthEnd).ToList();
-				//var totalIncome = monthIncome.Sum(x => x.TransactionAmount);
 
-				Console.WriteLine($"\tTabulating income totals for {monthStart.ToString("MMMM yyyy")} ==========");
+				Console.WriteLine($"\tTabulating income totals for {monthStart:MMMM yyyy} ==========");
 
-				sl.SetCellValue($"{colMonth}{row}", $"{monthStart.ToString("MMM yyyy")}");
+				sl.SetCellValue($"{colMonth}{row}", $"{monthStart:MMM yyyy}");
 
 				row++;
 
@@ -286,26 +293,22 @@ namespace Carrotware.IncomeParser.Helpers {
 			SLD_ResizeColumn(sl, "A", 16);
 			SLD_ResizeColumn(sl, "B", 18);
 
-			var accountColors = new Color[] { _color2, _color4, _color6, _color1, _color3, _color5 };
-
-			int lastRow = 2 + brokerCount;
+			var accountColors = GetStandardColors();
 
 			var options = new SLCreateChartOptions() { RowsAsDataSeries = true };
-			var chart = sl.CreateChart(2, 2, lastRow, colMaxIdx, options);
 
-			for (int i = 0; i < brokerCount; i++) {
-				int seriesIndex = i + 1;
-				var color = accountColors[i % accountColors.Length];
-
-				var seriesOptions = chart.GetDataSeriesOptions(seriesIndex);
-
-				seriesOptions.Fill.SetSolidFill(color, 0);
-
-				chart.SetDataSeriesOptions(seriesIndex, seriesOptions);
-			}
-
+			var chart = sl.CreateChart(2, (colFirstIdx + 1), lastRow, colMaxIdx, options);
 			chart.SetChartType(SLColumnChartType.ClusteredColumn);
+			chart.Title.Text = $"Monthly Income by Account - {year}";
 			chart.ShowChartLegend(LegendPositionValues.Right, false);
+
+			for (int i = 1; i <= brokerCount; i++) {
+				var color = accountColors[(i - 1) % accountColors.Length];
+
+				var opt = chart.GetDataSeriesOptions(i);
+				opt.Fill.SetSolidFill(color, 0);
+				chart.SetDataSeriesOptions(i, opt);
+			}
 
 			chart.SetChartPosition((lastRow + 2), 1, (lastRow + 25), 12);
 			sl.InsertChart(chart);
@@ -318,6 +321,8 @@ namespace Carrotware.IncomeParser.Helpers {
 			var brokers = this.BrokerSummaries;
 			int brokerCount = brokers.Count();
 			var year = this.Year;
+
+			int row = 1;
 
 			var stylePlain = StylePlain(sl);
 			var styleMainHead = StyleH2(sl);
@@ -332,18 +337,12 @@ namespace Carrotware.IncomeParser.Helpers {
 			var colMax = 'D';
 			var colMaxIdx = ColLetterToNumber(colMax);
 
-			var income = new List<TransactionDetail>();
+			var income = brokers
+				.SelectMany(b => b.QuarterRows)
+				.SelectMany(q => q.IncomeDetails)
+				.ToList();
 
-			foreach (var b in brokers) {
-				Console.WriteLine($"\tCreating income totals {b.AccountIdentity} ==========");
-
-				foreach (var q in b.QuarterRows) {
-					income = income.Union(q.IncomeDetails).ToList();
-				}
-			}
-
-			int row = 1;
-
+			// months as rows
 			for (int m = 1; m <= 12; m++) {
 				var monthStart = ParseHelper.GetStartDateByNumber(year, m);
 				var monthEnd = ParseHelper.GetEndOfMonthByDate(monthStart);
@@ -352,17 +351,17 @@ namespace Carrotware.IncomeParser.Helpers {
 				var monthIncome = income.Where(x => x.TransactionDate >= monthStart && x.TransactionDate <= monthEnd).ToList();
 				var totalIncome = monthIncome.Sum(x => x.TransactionAmount);
 
-				Console.WriteLine($"\tTabulating income totals for {monthStart.ToString("MMMM yyyy")} ==========");
+				Console.WriteLine($"\tTabulating income totals for {monthStart:MMMM yyyy} ==========");
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{(row + 5)}", stylePlain);
 
-				sl.SetCellValue($"{colFirst}{row}", $"{monthStart.ToString("MMMM yyyy")}");
+				sl.SetCellValue($"{colFirst}{row}", $"{monthStart:MMMM yyyy}");
 				sl.SetCellValue($"B{row}", " ");
 				sl.SetCellValue($"C{row}", " ");
 				sl.SetCellValue($"{colMax}{row}", 0);
 
 				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
-				//sl.SetCellStyle($"{colMax}{row}", styleMoney);
-
 				SLD_ResizeRow(sl, row, 20);
+
 				row++;
 
 				foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
@@ -381,6 +380,7 @@ namespace Carrotware.IncomeParser.Helpers {
 
 					row++;
 				}
+
 				row++;
 			}
 
@@ -398,6 +398,8 @@ namespace Carrotware.IncomeParser.Helpers {
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
+			int row = 1;
+
 			var stylePlain = StylePlain(sl);
 			var styleMainHead = StyleH2(sl);
 			var styleHead = StyleHeadBase(sl);
@@ -414,26 +416,21 @@ namespace Carrotware.IncomeParser.Helpers {
 			SLD_ResizeColumn(sl, "A", 14);
 			SLD_ResizeColumn(sl, "B", 18);
 
-			var income = new List<TransactionDetail>();
+			var income = brokers
+				.SelectMany(b => b.QuarterRows)
+				.SelectMany(q => q.IncomeDetails)
+				.ToList();
 
-			foreach (var b in brokers) {
-				Console.WriteLine($"\tCreating income history {b.AccountIdentity} ==========");
-
-				foreach (var q in b.QuarterRows) {
-					income = income.Union(q.IncomeDetails).ToList();
-				}
-			}
-
-			int row = 1;
-
+			// months as rows
 			for (int m = 1; m <= 12; m++) {
 				var monthStart = ParseHelper.GetStartDateByNumber(year, m);
 				var monthEnd = ParseHelper.GetEndOfMonthByDate(monthStart);
 
-				Console.WriteLine($"\tTabulating income for {monthStart.ToString("MMMM yyyy")} ==========");
+				Console.WriteLine($"\tTabulating income for {monthStart:MMMM yyyy} ==========");
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{(row + 5)}", stylePlain);
 
 				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
-				sl.SetCellValue($"{colFirst}{row}", $"{monthStart.ToString("MMMM yyyy")}");
+				sl.SetCellValue($"{colFirst}{row}", $"{monthStart:MMMM yyyy}");
 				SLD_ResizeRow(sl, row, 20);
 				row++;
 
@@ -449,6 +446,8 @@ namespace Carrotware.IncomeParser.Helpers {
 										.OrderByDescending(x => x.TotalAmount)
 										.ToList();
 
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{(row + sortedIncome.Count + 5)}", stylePlain);
+
 				foreach (var inc in sortedIncome) {
 					sl.SetCellValue($"A{row}", inc.Ticker);
 					sl.SetCellValue($"I{row}", inc.TotalAmount);
@@ -462,14 +461,13 @@ namespace Carrotware.IncomeParser.Helpers {
 
 					var tickerIncome = monthIncome.Where(x => x.SecuritySymbol.ToUpperInvariant() == inc.Ticker.ToUpperInvariant());
 
-					var rowct = tickerIncome.Count();
-					sl.SetCellStyle(row, colFirstIdx, (row + rowct + 3), colMaxIdx, stylePlain);
-
 					foreach (var mi in tickerIncome.OrderBy(x => x.BrokerIdentity)
 											.OrderBy(x => x.AccountIdentity)
 											.OrderBy(x => x.TransactionType)
 											.OrderBy(x => x.TransactionDate)
 											.OrderByDescending(x => x.TransactionAmount)) {
+						sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+
 						sl.SetCellValue($"B{row}", mi.BrokerIdentity);
 						sl.SetCellValue($"C{row}", mi.AccountIdentity);
 						sl.SetCellValue($"D{row}", mi.SecuritySymbol);
@@ -484,6 +482,8 @@ namespace Carrotware.IncomeParser.Helpers {
 						row++;
 					}
 				}
+
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{(row + 5)}", stylePlain);
 
 				row = row + 3;
 			}
@@ -500,13 +500,146 @@ namespace Carrotware.IncomeParser.Helpers {
 			return sl;
 		}
 
+		protected SLDocument ReportIncomePieChart(SLDocument sl) {
+			sl.SelectWorksheet(Sheet_IncomePie);
+			var brokers = this.BrokerSummaries;
+			var year = this.Year;
+
+			int row = 1;
+
+			var stylePlain = StylePlain(sl);
+			var styleMainHead = StyleH2(sl);
+			var styleMoney = StyleMoney(sl);
+			var styleHead = StyleHeadBase(sl);
+			var styleRowHead = StyleRowHead(sl);
+			var stylePerc = StylePercent(sl);
+
+			var styleSubTot = StylePlain(sl);
+			styleSubTot.Alignment.Horizontal = HorizontalAlignmentValues.Right;
+			styleSubTot.Font.Bold = true;
+			styleSubTot.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
+			styleSubTot.Border.TopBorder.Color = Color.Black;
+			styleSubTot.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
+			styleSubTot.Border.BottomBorder.Color = Color.Black;
+
+			var fundColors = GetStandardColors();
+
+			int takeTop = CoreConfig.IncomeTop;
+
+			var colFirst = 'A';
+			var colFirstIdx = ColLetterToNumber(colFirst);
+			var colMax = 'C';
+			var colMaxIdx = ColLetterToNumber(colMax);
+
+			SLD_ResizeColumn(sl, "A", 28);
+			SLD_ResizeColumn(sl, "B", 18);
+			SLD_ResizeColumn(sl, "C", 18);
+
+			var income = brokers
+				.SelectMany(b => b.QuarterRows)
+				.SelectMany(q => q.IncomeDetails)
+				.ToList();
+
+			var annualIncomeBySecurity = income
+				.GroupBy(i => i.SecuritySymbol)
+				.Select(g => new {
+					Security = g.Key,
+					TotalAmount = g.Sum(i => i.TransactionAmount)
+				})
+				.OrderByDescending(x => x.TotalAmount)
+				.ToList();
+
+			var topIncome = annualIncomeBySecurity.Take(takeTop).ToList();
+
+			if (annualIncomeBySecurity.Count > takeTop) {
+				var ct = annualIncomeBySecurity.Skip(takeTop).Count();
+				var otherIncome = annualIncomeBySecurity.Skip(takeTop).Sum(x => x.TotalAmount);
+				topIncome.Add(new { Security = $"Remaining {ct} Holdings", TotalAmount = otherIncome });
+			}
+
+			int incomeCount = topIncome.Count;
+
+			int lastRow = 2 + incomeCount;
+
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{lastRow + 3}", stylePlain);
+
+			sl.SetCellValue($"A{row}", $"Annual Income Producers {year}");
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
+			SLD_ResizeRow(sl, row, 20);
+			row++;
+
+			sl.SetCellValue($"A{row}", "Security");
+			sl.SetCellValue($"B{row}", "Total Income");
+			sl.SetCellValue($"C{row}", "Percentage");
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleHead);
+			SLD_ResizeRow(sl, row, 18);
+
+			row++;
+
+			var sumRow = topIncome.Count + row;
+
+			string formulaTotalCol = $"=SUM(B{row}:B{sumRow - 1})";
+
+			sl.SetCellStyle($"{colFirst}{sumRow}", $"{colMax}{sumRow}", styleSubTot);
+			sl.SetCellValue($"A{sumRow}", "Total");
+			sl.SetCellValue($"B{sumRow}", formulaTotalCol);
+
+			sl.SetCellStyle($"A{sumRow}", styleRowHead);
+			sl.SetCellStyle($"B{sumRow}", styleMoney);
+
+			foreach (var item in topIncome.OrderByDescending(x => x.TotalAmount)) {
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+
+				string formulaPercCol = $"=B{row}/B${sumRow}";
+
+				sl.SetCellValue($"A{row}", item.Security);
+				sl.SetCellValue($"B{row}", item.TotalAmount);
+				sl.SetCellValue($"C{row}", formulaPercCol);
+
+				sl.SetCellStyle($"A{row}", styleRowHead);
+				sl.SetCellStyle($"B{row}", styleMoney);
+				sl.SetCellStyle($"C{row}", stylePerc);
+				row++;
+			}
+
+			SLD_ResizeColumn(sl, "B", 18);
+			SLD_ResizeColumn(sl, "C", 18);
+
+			var options = new SLCreateChartOptions();
+			options.IsStylish = true;
+
+			var chart = sl.CreateChart(2, colFirstIdx, lastRow, (colFirstIdx + 1), options);
+			chart.Title.Text = $"Top Annual Income Producers {year}";
+			chart.SetChartType(SLPieChartType.Pie);
+			chart.ShowChartLegend(LegendPositionValues.Right, false);
+
+			for (int i = 1; i <= incomeCount; i++) {
+				var color = fundColors[(i - 1) % fundColors.Length];
+
+				var opt = chart.CreateDataPointOptions();
+				opt.Fill.SetSolidFill(color, 0);
+				chart.SetDataPointOptions(0, i, opt);
+			}
+
+			var lblOpt = chart.CreateGroupDataLabelOptions();
+			lblOpt.ShowPercentage = true;
+			lblOpt.ShowValue = false;
+			lblOpt.ShowCategoryName = (incomeCount <= 28);
+			chart.SetGroupDataLabelOptions(lblOpt);
+
+			chart.SetChartPosition(1, (colMaxIdx + 2), 32, (colMaxIdx + 14));
+			sl.InsertChart(chart);
+
+			return sl;
+		}
+
 		protected SLDocument ReportSalesTotal(SLDocument sl) {
 			sl.SelectWorksheet(Sheet_SalesTotal);
 			var brokers = this.BrokerSummaries;
 			int brokerCount = brokers.Count();
 			var year = this.Year;
 
-			int row = 0;
+			int row = 1;
 
 			var stylePlain = StylePlain(sl);
 			var styleMainHead = StyleH2(sl);
@@ -526,7 +659,10 @@ namespace Carrotware.IncomeParser.Helpers {
 			var colMax = 'N';
 			var colMaxIdx = ColLetterToNumber(colMax);
 
-			row = 1;
+			int lastRow = 2 + (brokerCount * 3);
+
+			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{lastRow + 3}", stylePlain);
+
 			sl.SetCellValue($"A{row}", "Sales By Month");
 			sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
 			SLD_ResizeRow(sl, row, 20);
@@ -537,10 +673,9 @@ namespace Carrotware.IncomeParser.Helpers {
 			SLD_ResizeRow(sl, row, 18);
 
 			row++;
-			foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
-				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
 
-				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
+			foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row + 3}", stylePlain);
 
 				sl.SetCellValue($"A{row}", b.BrokerIdentity);
 				sl.SetCellValue($"B{row}", b.AccountIdentity + " (gains)");
@@ -558,8 +693,6 @@ namespace Carrotware.IncomeParser.Helpers {
 
 				row++;
 
-				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", stylePlain);
-
 				sl.SetCellValue($"A{row}", b.BrokerIdentity);
 				sl.SetCellValue($"B{row}", b.AccountIdentity + " (cost)");
 
@@ -569,6 +702,7 @@ namespace Carrotware.IncomeParser.Helpers {
 				row++;
 			}
 
+			// months as columns
 			for (int m = 1; m <= 12; m++) {
 				row = 2;
 				var colMonthIdx = colFirstIdx + m + 1;
@@ -577,14 +711,15 @@ namespace Carrotware.IncomeParser.Helpers {
 				var monthStart = ParseHelper.GetStartDateByNumber(year, m);
 				var monthEnd = ParseHelper.GetEndOfMonthByDate(monthStart);
 
-				Console.WriteLine($"\tTabulating sales totals for {monthStart.ToString("MMMM yyyy")} ==========");
-
-				sl.SetCellValue($"{colMonth}{row}", $"{monthStart.ToString("MMM yyyy")}");
+				Console.WriteLine($"\tTabulating sales totals for {monthStart:MMMM yyyy} ==========");
+				sl.SetCellValue($"{colMonth}{row}", $"{monthStart:MMM yyyy}");
 
 				row++;
 
 				foreach (var b in brokers.OrderByDescending(x => x.GrandTotal)) {
 					var accountIncome = b.GainLossRows.Where(x => x.DateClosed >= monthStart && x.DateClosed <= monthEnd).ToList();
+
+					sl.SetCellStyle($"{colMonth}{row}", $"{colMonth}{row + 3}", stylePlain);
 
 					var gainLoss = accountIncome.Sum(x => x.GainLoss);
 					var proceeds = accountIncome.Sum(x => x.Proceeds);
@@ -609,26 +744,26 @@ namespace Carrotware.IncomeParser.Helpers {
 			SLD_ResizeColumn(sl, "A", 16);
 			SLD_ResizeColumn(sl, "B", 18);
 
-			var accountColors = new Color[] { _color2, _color4, _color6, _color1, _color3, _color5 };
+			var accountColors = GetStandardColors();
 			var colorGold = new string[] { "#ffa600", "#ed9200", "#da7f00", "#c76c01", "#b35a00", "#9f4900" };
 			var colorBlues = new string[] { "#04198f", "#382e96", "#53439c", "#6958a3", "#7e6ea9", "#9185af" };
 			var colorGreens = new string[] { "#3a9c2d", "#569e47", "#6ba05e", "#7ea274", "#90a38a" };
 			var colorReds = new string[] { "#ae2d19", "#c34931", "#d86349", "#eb7d61", "#ff967b" };
 
-			int lastRow = 2 + (brokerCount * 3);
-
 			var options = new SLCreateChartOptions() { RowsAsDataSeries = true };
-			var chart = sl.CreateChart(2, 2, lastRow, colMaxIdx, options);
 
+			var chart = sl.CreateChart(2, (colFirstIdx + 1), lastRow, colMaxIdx, options);
 			chart.SetChartType(SLColumnChartType.ClusteredColumn);
+			chart.Title.Text = $"Monthly Sales Performance - {year}";
+			chart.ShowChartLegend(LegendPositionValues.Right, false);
 
 			for (int i = 1; i <= brokerCount; i++) {
-				var color = accountColors[i % accountColors.Length];
+				var color = accountColors[(i - 1) % accountColors.Length];
 
-				var ccBlue = colorBlues[i % colorBlues.Length];
+				var ccBlue = colorBlues[(i - 1) % colorBlues.Length];
 				//var ccGreen = colorGreens[i % colorGreens.Length];
 				//var ccRed = colorReds[i % colorReds.Length];
-				var ccGold = colorGold[i % colorGold.Length];
+				var ccGold = colorGold[(i - 1) % colorGold.Length];
 
 				var blue = ColorTranslator.FromHtml(ccBlue);
 				//var green = ColorTranslator.FromHtml(ccGreen);
@@ -661,8 +796,6 @@ namespace Carrotware.IncomeParser.Helpers {
 
 				chart.PlotDataSeriesAsSecondaryLineChart(ixGain, SLChartDataDisplayType.Normal, false);
 			}
-
-			chart.ShowChartLegend(LegendPositionValues.Right, false);
 
 			chart.SetChartPosition((lastRow + 2), 1, (lastRow + 25), 12);
 			sl.InsertChart(chart);
@@ -712,6 +845,7 @@ namespace Carrotware.IncomeParser.Helpers {
 				var tickers = b.GainLossRows.Select(x => x.SecuritySymbol.ToUpperInvariant()).OrderBy(x => x).Distinct().ToList();
 
 				Console.WriteLine($"\tCreating sale history {b.AccountIdentity} ==========");
+				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row + 5}", stylePlain);
 
 				sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row}", styleMainHead);
 				sl.SetCellValue($"{colFirst}{row}", $"{b.BrokerIdentity} : {b.AccountIdentity}");
@@ -724,13 +858,10 @@ namespace Carrotware.IncomeParser.Helpers {
 						.OrderBy(x => x.Quantity)
 						.OrderBy(x => x.DateOpened)
 						.OrderBy(x => x.DateClosed).ToList();
-					//var tranRows = b.TransactionRows
-					//		.Where(x => x.SecuritySymbol == ticker && (x.TransactionType == TransactionType.Journal || x.TransactionType == TransactionType.Sell))
-					//		.OrderBy(x => x.TransactionDate).ToList();
 
 					var rowct = saleRows.Count();
 
-					sl.SetCellStyle(row, colFirstIdx, (row + rowct + 3), colMaxIdx, stylePlain);
+					sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row + rowct + 3}", stylePlain);
 
 					var desc = string.Empty;
 					var det = saleRows.FirstOrDefault();
@@ -906,8 +1037,8 @@ namespace Carrotware.IncomeParser.Helpers {
 						quarterTaxRow++;
 					}
 
-					string formultotalCol = $"=SUM({colTax}{quarterTaxRow - 4}:{colTax}{quarterTaxRow - 1})";
-					sl.SetCellValue($"{colTax}{quarterTaxRow}", formultotalCol);
+					string formulaTotalCol = $"=SUM({colTax}{quarterTaxRow - 4}:{colTax}{quarterTaxRow - 1})";
+					sl.SetCellValue($"{colTax}{quarterTaxRow}", formulaTotalCol);
 				}
 			}
 
@@ -1087,7 +1218,7 @@ namespace Carrotware.IncomeParser.Helpers {
 								.OrderBy(x => x.GainLossRow.DateClosed)
 								.OrderBy(x => x.GainLossRow.SecuritySymbol);
 
-					sl.SetCellStyle(row, colFirstIdx, (row + 3), colMaxIdx, stylePlain);
+					sl.SetCellStyle($"{colFirst}{row}", $"{colMax}{row + 5}", stylePlain);
 
 					foreach (var match in quarterWash) {
 						var glr = match.GainLossRow;
@@ -1202,11 +1333,9 @@ namespace Carrotware.IncomeParser.Helpers {
 
 			var styleRowHead = StyleRowHead(sl);
 
-			var styleSubTot = sl.CreateStyle();
+			var styleSubTot = StylePlain(sl);
 			styleSubTot.Alignment.Horizontal = HorizontalAlignmentValues.Right;
 			styleSubTot.Font.Bold = true;
-			styleSubTot.Font.FontColor = Color.Black;
-			styleSubTot.Font.FontSize = _baseFont;
 			styleSubTot.Border.TopBorder.BorderStyle = BorderStyleValues.Thin;
 			styleSubTot.Border.TopBorder.Color = Color.Black;
 			styleSubTot.Border.BottomBorder.BorderStyle = BorderStyleValues.Thick;
@@ -1272,8 +1401,8 @@ namespace Carrotware.IncomeParser.Helpers {
 					sl.SetCellStyle($"{colSubTot}{subhead + r}", styleMoney);
 				}
 
-				string formultotalCol = $"=SUM({colSubTot}{subhead + 1}:{colSubTot}{subhead + 4})";
-				sl.SetCellValue((subhead + 5), colSubTotIdx, formultotalCol);
+				string formulaTotalCol = $"=SUM({colSubTot}{subhead + 1}:{colSubTot}{subhead + 4})";
+				sl.SetCellValue((subhead + 5), colSubTotIdx, formulaTotalCol);
 				sl.SetCellStyle((subhead + 5), colSubTotIdx, styleMoney);
 
 				// start in col B and move from there

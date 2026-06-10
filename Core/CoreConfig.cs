@@ -63,6 +63,22 @@ namespace Carrotware.IncomeParser.Core {
 			}
 		}
 
+		public static int IncomeTop {
+			get {
+				var ret = int.TryParse(Configuration["IncomeTop"], out int incomeTop);
+
+				if (incomeTop < 5) {
+					incomeTop = 5;
+				}
+
+				if (incomeTop > 50) {
+					incomeTop = 50;
+				}
+
+				return incomeTop;
+			}
+		}
+
 		public static List<List<string>> SecurityAliases {
 			get {
 				var securityAliases = Configuration.GetSection("SecurityAliases");
