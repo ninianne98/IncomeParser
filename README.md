@@ -65,7 +65,7 @@ The application utilizes an `appsettings.json` file for configuration.
     "Interest": 0.24
   },
   "SecurityAliases": [
-    "QQQ,QQQM,USNQX",
+    "QQQ,QQQM,QNDX,IQQ,USNQX",
 	"SWPPX,VOO,SPY,SPYM,IVV",
     "WSHFX,WSHCX,AWSHX"
   ]
